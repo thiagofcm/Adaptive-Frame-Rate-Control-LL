@@ -1,0 +1,19 @@
+# Ignore all PyTorch model files
+*.pt
+
+# Ignore images
+*.png
+*.jpg
+*.jpeg
+*.gif
+events.out.tfevents.*
+
+# Keep one specific model
+!runs/LunarLander-v3__ppo__1__1779191150/model.pt
+!runs/LunarLander_VarFramerate_SimplePadded__multi_ppo_lstm__1__1779370953/model.pt
+!result_plots/fps_over_height/LunarLander_VarFramerate_SimplePadded__multi_ppo_lstm__1__1779370953/fig1/combined_seed155_BUD50.0_FC2.0.png
+!result_plots/fps_over_height/fixed/v3/*
+!result_plots/nav_reward_study/LunarLander_VarFramerate_SimplePadded__multi_ppo_lstm__1__1779370953/seed_155_budget_50.0_fc_2.0_fps_demo_with_fps.gif
+
+# Ignore CSV files
+*.csv
