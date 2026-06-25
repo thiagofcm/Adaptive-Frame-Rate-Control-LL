@@ -763,12 +763,6 @@ class LunarLander_VarFramerate(LunarLander):
         )  # less fuel spent is better, about -30 for heuristic landing
         reward -= s_power * 0.03
 
-
-        # print("DEBUG: Landing penalty: ", self.landing_penalty, type(self.landing_penalty))
-        # print("DEBUG: Frame cost: ", self.frame_cost, type(self.frame_cost))
-        # print("DEBUG: Vy ", vy)
-        # print("DEBUG: HIGHT: ", state[1])
-
         vy = abs(state[3])
         height = state[1]
         touchdown_check = (state[6] or state[7]) and not self.touchdown_flag
@@ -776,11 +770,10 @@ class LunarLander_VarFramerate(LunarLander):
         # If one of the legs touched the ground and the self.touchdown_flag is previously false,
         # then touchdown_check is True, and the spacecraft just landed.
         
-        # VERSION THAT WORKED AND SHOWED TO SANJEEV: vy thr was 0.4
         if touchdown_check:
             self.touchdown_flag = True
             self.landing_phase = False
-            if vy > 0.18:
+            if vy > 0.4:
                 reward = -100
         # If the spacecraft just landed, set touchdown_flag == True, so touchdown_check will be false and next step
         # and this verification only happens once.
@@ -897,22 +890,6 @@ class LunarLander_VarFramerate(LunarLander):
 
         new_obs = self._get_sequence_obs()
         
-        #print(f"Observation on STEP: {new_obs}")
-        # print("=" * 80)
-        # print("STEP")
-
-        # for i in range(new_obs.shape[0]):
-        #     obs_vals = new_obs[i, :8]
-        #     extras = new_obs[i, 8:10]
-        #     mask_vals = self.mask_buffer[i]
-
-        #     print(f"[timestep {i}]")
-        #     print(f"  obs:   {obs_vals}")
-        #     print(f"  mask:  {mask_vals}  (sum={mask_vals.sum()})")
-        #     print(f"  extra: age_ratio={extras[0]:.3f}, fps_ratio={extras[1]:.3f}")
-        #     print("-" * 40)
-
-
         info = dict(info)
         info["reward"] = reward
         info["nav_reward"] = nav_reward
@@ -922,33 +899,6 @@ class LunarLander_VarFramerate(LunarLander):
         info["episode_frame_count"] = self.episode_frame_count
         info["timeout"] = truncated and not terminated
 
-        # ================= DEBUG =================
-        #last_row = self.obs_buffer[-1]
-
-        #obs_age = last_row[-2]        # obs_age_ratio
-        #fps_ratio_obs = last_row[-1]  # fps_ratio from observation
-        #fps_ratio_true = self.current_fps / self.simulation_fps
-
-        # print("=" * 50)
-        # print(f"Step: {self.world_step_count}")
-        # print(f"Steps since last obs: {self.steps_since_last_obs}")
-        # print(f"Current FPS: {self.current_fps}")
-        # print(f"Obs interval: {self.obs_interval}")
-
-        # print(f"OBS → age_ratio: {obs_age:.2f}, fps_ratio: {fps_ratio_obs:.2f}")
-        # print(f"TRUE → fps_ratio: {fps_ratio_true:.2f}")
-
-        # print(f"Reward: {reward:.4f} (nav: {nav_reward:.4f}, penalty: {fps_penalty:.4f})")
-        # print(f"FPS used for reward: {fps_used_for_reward}")
-
-        # Check if an action will be taken this timestep
-        # if self.steps_since_last_obs + 1 >= self.action_interval:
-        #     self.current_fps = self.fps_choices[int(action)]
-        #     self.obs_interval = int(self.simulation_fps / self.current_fps)
-        #     # the action is chosen at a sampling instant and affects future sampling
-        #     self.action_interval = self.obs_interval
-
-        #print(f"Augmented observation shape on STEP: {new_obs.shape}")
         return self._get_sequence_obs(), reward, terminated, truncated, info
 
     def render(self):

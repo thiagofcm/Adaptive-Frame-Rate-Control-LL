@@ -6,7 +6,9 @@
 *.jpg
 *.jpeg
 *.gif
-events.out.tfevents.*
+
+# TensorBoard
+**/events.out.tfevents.*
 
 # Keep one specific model
 !runs/LunarLander-v3__ppo__1__1779191150/model.pt
