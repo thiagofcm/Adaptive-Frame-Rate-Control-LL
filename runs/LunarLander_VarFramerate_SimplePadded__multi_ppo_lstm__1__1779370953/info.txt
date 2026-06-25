@@ -1,0 +1,27 @@
+For this model I was using:
+action space: [1,5,10,25,50]
+frame_cost = 2.0
+
+reward shape:
+
+    Frame_cost = 2.0
+
+    Physics Step:
+
+    Standard nav reward computation (-2~5pts)
+
+    If vy > threshold at touchdown:
+    reward= -100
+
+    If consumed more than 50 frames and not landed:
+    reward = - 100
+
+    If termination condition:
+    reward = - 100
+
+    If successful land and no motion:
+    reward=+100
+
+    Step:
+    If landed:
+    Total_reward = Nav_reward – frame_cost * frame_consumed

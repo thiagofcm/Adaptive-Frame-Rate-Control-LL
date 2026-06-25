@@ -1,0 +1,3 @@
+For this model I was using:
+reduced action space [1,5,25]
+frame_cost = 0.0
