@@ -538,24 +538,6 @@ class LunarLander_VarFramerate(LunarLander):
         # Get the variable from the buffer and return it as the initial observation
         reset_obs = self._get_sequence_obs()
         
-        # DEBUGGING PRINTS:
-        #print(f"Initial observation on RESET: {reset_obs}")
-        #print(f"Augmented observation shape on RESET: {reset_obs.shape}")
-        
-        # print("=" * 80)
-        # print("RESET")
-
-        # for i in range(reset_obs.shape[0]):
-        #     obs_vals = reset_obs[i, :8]
-        #     extras = reset_obs[i, 8:10]
-        #     mask_vals = self.mask_buffer[i]
-
-        #     print(f"[timestep {i}]")
-        #     print(f"  obs:   {obs_vals}")
-        #     print(f"  mask:  {mask_vals}  (sum={mask_vals.sum()})") 
-        #     print(f"  extra: age={extras[0]:.3f}, fps={extras[1]:.3f}")
-        #     print("-" * 40)
-                
         return reset_obs, {}
 
     def _create_particle(self, mass, x, y, ttl):
