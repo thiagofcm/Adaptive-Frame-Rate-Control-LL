@@ -89,7 +89,6 @@ class NavModel:
             action = torch.argmax(self.agent.actor(obs_tensor), dim=-1)
         return action.cpu().numpy()[0], None
 
-
 class AgentEval(nn.Module):
     def __init__(self, obs_dim, n_actions, lstm_hidden_size=64):
         super().__init__()
