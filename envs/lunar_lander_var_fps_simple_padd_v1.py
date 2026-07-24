@@ -77,7 +77,7 @@ class ContactDetector(contactListener):
             if self.env.legs[i] in [contact.fixtureA.body, contact.fixtureB.body]:
                 self.env.legs[i].ground_contact = False
 
-class LunarLander_VarFramerate(LunarLander):
+class LunarLander_VarFramerate_v1(LunarLander):
     r"""
     ## Description
     This environment is a classic rocket trajectory optimization problem.
@@ -289,7 +289,7 @@ class LunarLander_VarFramerate(LunarLander):
         
         # Mask and Padding Settings:
         self.obs_seq_len = 1
-        self.single_obs_dim = 10 # 8 original obs + 2 mask values
+        self.single_obs_dim = 11 # 8 original obs + obs_age_ratio + fps_ratio + frame_counter
         self.obs_buffer = deque(maxlen=self.obs_seq_len)
 
         # Debbuging Mask
@@ -312,9 +312,10 @@ class LunarLander_VarFramerate(LunarLander):
                 0.0,            # left leg contact
                 0.0,            # right leg contact
 
-                # Variable framerate values (2)
+                # Variable framerate values (3)
                 0.0,            # obs age ratio lower bound
-                0.0             # fps ratio lower bound
+                0.0,            # fps ratio lower bound
+                0.0             # frame counter (episode_frame_count / budget) lower bound
             ]
         ).astype(np.float32)
         high_single = np.array(
@@ -333,9 +334,10 @@ class LunarLander_VarFramerate(LunarLander):
                 1.0,            # left leg contact
                 1.0,            # right leg contact
 
-                # Variable framerate values (2)
+                # Variable framerate values (3)
                 1.0,            # obs age ratio upper bound
-                1.0             # fps ratio upper bound
+                1.0,            # fps ratio upper bound
+                1.0             # frame counter (episode_frame_count / budget) upper bound
 
             ]
         ).astype(np.float32)
@@ -789,10 +791,13 @@ class LunarLander_VarFramerate(LunarLander):
         obs_age_ratio = obs_age_steps / self.simulation_fps
         # normalizing the num of steps since last obs
         fps_ratio = self.current_fps/self.simulation_fps
+        # how many decisions spent out of budget -- clean 0->1 ramp that hits 1.0
+        # exactly when the budget-overrun penalty (in _physics_step) is about to fire
+        frame_counter = np.clip(self.episode_frame_count / self.budget, 0, 1)
 
         aug_obs = np.concatenate([
             obs_values.astype(np.float32),
-            np.array([obs_age_ratio,fps_ratio], dtype=np.float32)])
+            np.array([obs_age_ratio, fps_ratio, frame_counter], dtype=np.float32)])
 
         return aug_obs
         
@@ -880,6 +885,10 @@ class LunarLander_VarFramerate(LunarLander):
         info["chosen_fps"] = self.current_fps
         info["episode_frame_count"] = self.episode_frame_count
         info["timeout"] = truncated and not terminated
+        # Whether `action` this tick was actually applied (a real sampling instant) or
+        # silently discarded (obs_interval not yet elapsed) -- the training loop's
+        # policy-loss masking must not train on discarded-action ticks.
+        info["frame_consumed"] = frame_consumed
 
         return self._get_sequence_obs(), reward, terminated, truncated, info
 
@@ -1008,8 +1017,8 @@ class LunarLander_VarFramerate(LunarLander):
             self.isopen = False
 
 register(
-    id="LunarLander_VarFramerate_SimplePadded",
-    entry_point="envs.lunar_lander_var_fps_simple_padd:LunarLander_VarFramerate",
+    id="LunarLander_VarFramerate_SimplePadded_v1",
+    entry_point="envs.lunar_lander_var_fps_simple_padd_v1:LunarLander_VarFramerate_v1",
     #max_episode_steps=500
 )
 

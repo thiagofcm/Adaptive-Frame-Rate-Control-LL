@@ -22,7 +22,7 @@ from pathlib import Path
 ACTION_SPACE_LENGTH = 4
 FPS_TO_ACTION = {1: 0, 5: 1, 10: 2, 50: 3}
 
-N_EPISODES      = 2
+N_EPISODES      = 100
 N_RUNS          = 1
 RUN_SEED        = 42
 NAV_MODEL_PATH  = "experiments/navigation/runs/LunarLander-v3__ppo__1__1779191150/model.pt"

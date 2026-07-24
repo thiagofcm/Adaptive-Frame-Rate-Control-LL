@@ -11,6 +11,9 @@ torch.set_num_interop_threads(1)
 
 import random
 import time
+import sys
+import yaml
+import argparse
 from dataclasses import dataclass
 import gymnasium as gym
 import numpy as np
@@ -21,7 +24,7 @@ from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 from stable_baselines3 import PPO as SB3PPO
 from gymnasium.wrappers import TimeLimit
-import envs.lunar_lander_var_fps_simple_padd
+import envs.lunar_lander_var_fps_simple_padd_v1
 from datetime import datetime
 
 @dataclass
@@ -44,7 +47,7 @@ class Args:
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "LunarLander_VarFramerate_SimplePadded"
+    env_id: str = "LunarLander_VarFramerate_SimplePadded_v1"
     """the id of the environment"""
     total_timesteps: int = 20000000
     """total timesteps of the experiments"""
@@ -91,6 +94,12 @@ class Args:
     max_episode_steps: int = 500
     resume_path: str = None
     """path to a checkpoint .pt file to resume training from"""
+    async_envs: bool = True
+    """use AsyncVectorEnv (one real subprocess per env) instead of SyncVectorEnv. Each
+    env's NavModel-forward + Box2D-physics step runs concurrently across processes
+    instead of serially in one -- real throughput potential on a many-core machine, at
+    the cost of subprocess start/IPC overhead and less deterministic step ordering than
+    Sync."""
 
 def make_env(env_id, nav_model_path, frame_cost, budget, max_episode_steps):
     def thunk():
@@ -184,12 +193,12 @@ class Agent(nn.Module):
         hidden, _ = self.get_states(x, lstm_state, done)
         return self.critic(hidden)
 
-    def get_action_and_value(self, x, lstm_state, done, action=None):
+    def get_action_and_value(self, x, lstm_state, done, action=None, deterministic=False):
         hidden, lstm_state = self.get_states(x, lstm_state, done)
         logits = self.actor(hidden)
         probs  = Categorical(logits=logits)
         if action is None:
-            action = probs.sample()
+            action = logits.argmax(dim=-1) if deterministic else probs.sample()
         return action, probs.log_prob(action), probs.entropy(), self.critic(hidden), lstm_state
 
 class NavAgent(nn.Module):
@@ -230,10 +239,28 @@ class NavModel:
                 action = torch.multinomial(probs, num_samples=1).squeeze(-1)
         return action.cpu().numpy()[0], None
 
+def load_args(args_class):
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--config", type=str, default=None)
+    known, remaining = pre.parse_known_args()
+
+    base = args_class()
+    if known.config:
+        with open(known.config) as f:
+            cfg = yaml.safe_load(f) or {}
+        for k, v in cfg.items():
+            if not hasattr(base, k):
+                raise KeyError(f"Unknown key in {known.config}: '{k}'")
+            setattr(base, k, v)
+
+    # let tyro parse remaining CLI flags, using YAML values as defaults
+    sys.argv = [sys.argv[0]] + remaining
+    return tyro.cli(args_class, default=base)
+
 if __name__ == "__main__":
     # import multiprocessing
     # multiprocessing.set_start_method("forkserver", force=True)
-    args = tyro.cli(Args)
+    args = load_args(Args)
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
@@ -276,10 +303,17 @@ if __name__ == "__main__":
     nav_model_path = "runs/LunarLander-v3__ppo__1__1779191150/model.pt"
 
     # env setup
-    envs = gym.vector.SyncVectorEnv(
-        [make_env(args.env_id, nav_model_path, args.frame_cost, args.budget, args.max_episode_steps) 
-        for _ in range(args.num_envs)],
-    )
+    env_fns = [make_env(args.env_id, nav_model_path, args.frame_cost, args.budget, args.max_episode_steps)
+               for _ in range(args.num_envs)]
+    if args.async_envs:
+        # context="fork" explicitly rather than the platform default: fork (the Linux
+        # default anyway) inherits the already-imported torch/gymnasium/Box2D modules
+        # from this process instead of re-importing them fresh per subprocess (spawn),
+        # and there's no CUDA context here to make fork unsafe (device is CPU-only in
+        # every config this has been run with so far).
+        envs = gym.vector.AsyncVectorEnv(env_fns, context="fork")
+    else:
+        envs = gym.vector.SyncVectorEnv(env_fns)
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
     agent = Agent(envs).to(device)
@@ -312,6 +346,12 @@ if __name__ == "__main__":
     rewards = torch.zeros((args.num_steps, args.num_envs)).to(device)
     dones = torch.zeros((args.num_steps, args.num_envs)).to(device)
     values = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    # 1.0 where fps_action was actually applied this tick (a real sampling instant),
+    # 0.0 where it was silently discarded (obs_interval not yet elapsed) -- used to
+    # exclude non-causal ticks from the policy loss (see update loop below). Defaults
+    # to 0 so an unset slot (shouldn't happen once "frame_consumed" is present in
+    # infos) doesn't accidentally get treated as a real decision.
+    masks = torch.zeros((args.num_steps, args.num_envs)).to(device)
 
     # TRY NOT TO MODIFY: start the game
     #global_step = 0
@@ -353,11 +393,26 @@ if __name__ == "__main__":
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(next_done).to(device)
 
-            # log chosen fps every step
+            # frame_consumed: was fps_action this tick a real decision (obs_interval
+            # elapsed) or silently discarded? Same auto-reset validity-mask handling
+            # as chosen_fps below -- fill with 0.0 (not causal) for the rare slot where
+            # the env's step() didn't actually run this tick.
+            if "frame_consumed" in infos:
+                valid_fc = infos.get("_frame_consumed", np.ones(args.num_envs, dtype=bool))
+                fc = np.where(valid_fc, infos["frame_consumed"], 0.0)
+                masks[step] = torch.tensor(fc, dtype=torch.float32).to(device)
+
+            # log chosen fps every step -- skip envs that just auto-reset this step:
+            # SyncVectorEnv/AsyncVectorEnv reset on the *next* step() call after
+            # termination, and reset() doesn't carry the env's "chosen_fps" key, so
+            # infos["_chosen_fps"][i] is False (and infos["chosen_fps"][i] is a
+            # meaningless 0 fill value) for those envs
             if "chosen_fps" in infos:
+                valid_fps = infos.get("_chosen_fps", np.ones(args.num_envs, dtype=bool))
                 for i in range(args.num_envs):
-                    episode_fps_sum[i]   += infos["chosen_fps"][i]
-                    episode_fps_count[i] += 1
+                    if valid_fps[i]:
+                        episode_fps_sum[i]   += infos["chosen_fps"][i]
+                        episode_fps_count[i] += 1
 
             if "episode" in infos:
                 finished = infos["episode"]["_r"]  # boolean mask — which envs finished
@@ -378,10 +433,11 @@ if __name__ == "__main__":
                         episode_fps_sum[i]   = 0
                         episode_fps_count[i] = 0
             
-            if "frame_cost" in infos:
-                writer.add_scalar("charts/frame_cost", infos["frame_cost"][0], global_step)
-            if "budget" in infos:
-                writer.add_scalar("charts/budget", infos["budget"][0], global_step)
+            # frame_cost/budget are constant for the whole run -- log them straight from
+            # args instead of infos[...][0], which reads 0 whenever env 0 happens to have
+            # just auto-reset that step (see the "chosen_fps" comment above for why)
+            writer.add_scalar("charts/frame_cost", args.frame_cost, global_step)
+            writer.add_scalar("charts/budget", args.budget, global_step)
 
         #Buffer os experience completed.
 
@@ -417,6 +473,7 @@ if __name__ == "__main__":
         b_returns = returns.reshape(-1)
         b_values = values.reshape(-1)
         b_dones      = dones.reshape(-1)
+        b_masks      = masks.reshape(-1)
 
         # Shuffle Env not timesteps
         assert args.num_envs % args.num_minibatches == 0
@@ -456,20 +513,45 @@ if __name__ == "__main__":
                 logratio = newlogprob - b_logprobs[minibatch_flat_indices]
                 ratio = logratio.exp()
 
+                # mb_mask: 1.0 where fps_action was a real, causal decision this tick,
+                # 0.0 where it was silently discarded (obs_interval not yet elapsed).
+                # Policy-side terms below (pg_loss, entropy, KL/clipfrac diagnostics)
+                # must not be trained on the discarded-action ticks -- the sampled
+                # action there had zero effect on the transition that produced the
+                # reward being credited, so training on it is *wrong* credit
+                # assignment, not just extra variance. The value function/GAE targets
+                # are unaffected by this mask -- they describe "how good is this
+                # state," which is meaningful every tick regardless of whether that
+                # tick's action was causal.
+                mb_mask = b_masks[minibatch_flat_indices]
+                mb_mask_sum = mb_mask.sum().clamp(min=1.0)
+
                 with torch.no_grad():
                     # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                    old_approx_kl = (-logratio).mean()
-                    approx_kl = ((ratio - 1) - logratio).mean()
-                    clipfracs += [((ratio - 1.0).abs() > args.clip_coef).float().mean().item()]
+                    old_approx_kl = (mb_mask * (-logratio)).sum() / mb_mask_sum
+                    approx_kl = (mb_mask * ((ratio - 1) - logratio)).sum() / mb_mask_sum
+                    clipfracs += [((mb_mask * ((ratio - 1.0).abs() > args.clip_coef).float()).sum() / mb_mask_sum).item()]
 
                 mb_advantages = b_advantages[minibatch_flat_indices]
                 if args.norm_adv:
-                    mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
+                    # Normalize using only the causal-tick statistics -- otherwise the
+                    # discarded-tick advantages (the majority, at low FPS) would
+                    # dominate the mean/std used to rescale the minority that actually
+                    # feeds the policy loss below.
+                    valid_advantages = mb_advantages[mb_mask.bool()]
+                    if valid_advantages.numel() > 0:
+                        # unbiased=False: default (unbiased=True) std of a single-element
+                        # tensor is NaN (0/0 degrees of freedom), which is a real
+                        # possibility here -- a minibatch can easily contain very few
+                        # causal ticks when most envs are running at low FPS. Population
+                        # std is well-defined (0) in that case, and the +1e-8 below
+                        # keeps the division safe.
+                        mb_advantages = (mb_advantages - valid_advantages.mean()) / (valid_advantages.std(unbiased=False) + 1e-8)
 
                 # Policy loss
                 pg_loss1 = -mb_advantages * ratio
                 pg_loss2 = -mb_advantages * torch.clamp(ratio, 1 - args.clip_coef, 1 + args.clip_coef)
-                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+                pg_loss = (mb_mask * torch.max(pg_loss1, pg_loss2)).sum() / mb_mask_sum
 
                 # Value loss
                 newvalue = newvalue.view(-1)
@@ -486,7 +568,7 @@ if __name__ == "__main__":
                 else:
                     v_loss = 0.5 * ((newvalue - b_returns[minibatch_flat_indices]) ** 2).mean()
 
-                entropy_loss = entropy.mean()
+                entropy_loss = (mb_mask * entropy).sum() / mb_mask_sum
                 loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef
 
                 optimizer.zero_grad()

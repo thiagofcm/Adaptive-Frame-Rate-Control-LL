@@ -1,0 +1,27 @@
+# Example config for experiments/var_fps/train_v1.py (LunarLander_VarFramerate_SimplePadded_v1).
+# Usage: python experiments/var_fps/train_v1.py --config config/var_fps_v1.yaml
+#
+# Values below match train_v1.py's Args defaults exactly -- this file changes nothing on
+# its own, it just demonstrates the --config loader (see load_args() in train_v1.py).
+# Any field can still be overridden on the CLI on top of this file, e.g.:
+#   python experiments/var_fps/train_v1.py --config config/var_fps_v1.yaml --frame-cost 1.5
+seed: 1
+total_timesteps: 20000000
+learning_rate: 0.0003
+num_envs: 32
+num_steps: 1024
+gamma: 0.99
+gae_lambda: 0.98
+num_minibatches: 16
+update_epochs: 4
+norm_adv: true
+clip_coef: 0.2
+clip_vloss: true
+ent_coef: 0.05
+vf_coef: 0.5
+max_grad_norm: 0.5
+anneal_lr: false
+frame_cost: 2.0
+budget: 100.0
+max_episode_steps: 500
+async_envs: true

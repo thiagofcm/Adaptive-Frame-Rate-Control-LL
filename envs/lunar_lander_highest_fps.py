@@ -265,6 +265,7 @@ class LunarLander_HighestFPS(LunarLander):
         self.simulation_fps= FPS
         self.fps_choices = [1,5,10,50]
         self.action_space = spaces.Discrete(len(self.fps_choices))
+        self.gamma = 0.99
 
         # Navigation Controller
         if navigation_model_path is not None:
@@ -281,6 +282,7 @@ class LunarLander_HighestFPS(LunarLander):
         self.fps_penalty = 0.0
         self.current_obs = None
         self.last_sampled_obs = None
+        self.max_physics_steps = 500
         
         # Mask and Padding Settings:
         self.obs_seq_len = 1
@@ -725,66 +727,59 @@ class LunarLander_HighestFPS(LunarLander):
     def step(self, action):
         assert self.navigation_model is not None, \
             "navigation_model is None — did you forget to inject it?"
-        
-        # Increment the world step count
-        self.world_step_count += 1
-        #print("FRAME COST: ", self.frame_cost)
 
-        # Increment the steps since last observation count
-        self.steps_since_last_obs += 1
+        # The action IS this window's decision — apply it immediately, no waiting for a boundary
+        self.current_fps = self.fps_choices[int(action)]
+        self.obs_interval = int(self.simulation_fps / self.current_fps)
 
-        # 1. Use the currently available sampled observation to compute navigation action
-        navigation_action, _ = self.navigation_model.predict(self.last_sampled_obs, deterministic=True)
+        reward = 0.0
+        discount = 1.0
+        ticks_in_window = 0
+        terminated = False
+        truncated = False
+        info = {}
 
-        # 2. Perform a physics step in the environment using the navigation action,
-        # and get the new observation, navigation reward, termination status, truncation status, and info
-        obs, nav_reward, terminated, truncated, info = self._physics_step(navigation_action)
-        
-        # 3. Update the current observation with the new observation obtained from the physics step
-        self.current_obs = obs.copy()
+        for _ in range(self.obs_interval):
+            self.world_step_count += 1
 
-        # 4. Check if it's time to sample a new observation based on the obs_interval
-        # If so, update the last sampled observation, reset the steps since last observation count, and increment the episode frame count
-        if self.steps_since_last_obs >= self.obs_interval:
-            # self.current_obs is updated every physics step, so here we store the fresh observation of this step
-            self.last_sampled_obs = self.current_obs.copy()
-            self.steps_since_last_obs = 0
-            self.episode_frame_count += 1
-            frame_consumed = True
+            # Nav controller always acts on the last *sampled* obs — held fixed for the whole window,
+            # this is what creates the staleness effect
+            navigation_action, _ = self.navigation_model.predict(self.last_sampled_obs, deterministic=True)
+            obs, nav_reward, terminated, truncated, info = self._physics_step(navigation_action)
 
-            # Update FPS and obs_interval based on the action taken by the agent
-            # the action is chosen at a sampling instant and affects future sampling
-            self.current_fps = self.fps_choices[int(action)]
-            self.obs_interval = int(self.simulation_fps / self.current_fps)
-            
-            # Debbuging mask, which indicates which values in the observation are valid (1 for valid, 0 for invalid)
-            # obs_mask = np.ones_like(self.last_sampled_obs, dtype=np.float32)
+            self.current_obs = obs.copy()
+            reward += discount * nav_reward
+            discount *= self.gamma
+            ticks_in_window += 1
 
-            # Copy the last sampled observation to a new variable, 
-            # which will be used for augmentation and storing in the buffer
-            obs_values = self.last_sampled_obs.copy()
+            #print(f"Step: {self.world_step_count}, Nav Action: {navigation_action}, "
+            #f"FPS Action: {action}, Current FPS: {self.current_fps}, "
+            #f"Obs Interval: {self.obs_interval}, Episode Frame Count: {self.episode_frame_count}, ")
 
-        else:
-            # If it's not time to sample a new observation, we use the last sampled
-            # observation (self.last_sampled_obs is not updated)
-            # get_stale_obs() generates a padded observation.
-            obs_values = self.get_stale_obs()
+            # Physics-tick-based truncation (replaces external TimeLimit — see note below)
+            if self.world_step_count >= self.max_physics_steps:
+                truncated = True
 
-            # Debbuging mask, which indicates which values in the observation are valid (1 for valid, 0 for invalid)
-            obs_mask = np.zeros_like(self.last_sampled_obs, dtype=np.float32)
-            frame_consumed = False
-        
+            if terminated or truncated:
+                break
+
+        # Window over: this is the new sampled observation — the one real decision point
+        #print(f"Window Reward: {reward:.4f}")
+        self.last_sampled_obs = self.current_obs.copy()
+        self.episode_frame_count += 1
+        self.steps_since_last_obs = 0  # kept only for logging/debugging clarity, no longer drives logic
+
+        obs_values = self.last_sampled_obs.copy()
         self.obs_buffer.append(obs_values.copy())
-        reward = nav_reward
-        print(f"Step: {self.world_step_count}, Nav Action: {navigation_action}, FPS Action: {action}, Current FPS: {self.current_fps}, Obs Interval: {self.obs_interval}, Steps Since Last Obs: {self.steps_since_last_obs}, Frame Consumed: {frame_consumed}, Episode Frame Count: {self.episode_frame_count}")
-        #print(f"Last Sampled Obs: {self._get_sequence_obs()}, Obs Values: {obs_values}")
-        
+
         info = dict(info)
         info["reward"] = reward
         info["nav_reward"] = nav_reward
         info["chosen_fps"] = self.current_fps
         info["episode_frame_count"] = self.episode_frame_count
+        info["physics_steps"] = self.world_step_count
         info["timeout"] = truncated and not terminated
+        info["window_duration"] = ticks_in_window
 
         return self._get_sequence_obs(), reward, terminated, truncated, info
 

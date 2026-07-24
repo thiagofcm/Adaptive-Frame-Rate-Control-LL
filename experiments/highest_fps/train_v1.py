@@ -1,28 +1,22 @@
 # docs and experiment results can be found at https://docs.cleanrl.dev/rl-algorithms/ppo/#ppopy
+import datetime
 import os
-# os.environ["OMP_NUM_THREADS"]   = "1"
-# os.environ["MKL_NUM_THREADS"]   = "1"
-# os.environ["OPENBLAS_NTHREADS"] = "1"
-# os.environ["NUMEXPR_NUM_THREADS"] = "1"
-
-import torch
-# torch.set_num_threads(1)
-# torch.set_num_interop_threads(1)
-
 import random
 import time
-from dataclasses import dataclass
 import gymnasium as gym
 import numpy as np
+import torch
 import torch.nn as nn
 import torch.optim as optim
 import tyro
-from torch.distributions.categorical import Categorical
+
+from dataclasses import dataclass
 from torch.utils.tensorboard import SummaryWriter
-from stable_baselines3 import PPO as SB3PPO
+from envs.lunar_lander_highest_fps_v1 import LunarLander_HighestFPS_v1
 from gymnasium.wrappers import TimeLimit
-import envs.lunar_lander_var_fps_simple_padd
+from experiments.highest_fps.classes import Agent, NavModel
 from datetime import datetime
+
 
 @dataclass
 class Args:
@@ -44,13 +38,13 @@ class Args:
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "LunarLander_VarFramerate_SimplePadded"
+    env_id: str = "LunarLander_HighestFPS_v1"
     """the id of the environment"""
-    total_timesteps: int = 20000000
+    total_timesteps: int = 100_000_000
     """total timesteps of the experiments"""
     learning_rate: float = 3.0e-4
     """the learning rate of the optimizer"""
-    num_envs: int = 32
+    num_envs: int =  16
     """the number of parallel game environments"""
     num_steps: int = 1024
     """the number of steps to run in each environment per policy rollout"""
@@ -60,7 +54,7 @@ class Args:
     """the discount factor gamma"""
     gae_lambda: float = 0.98
     """the lambda for the general advantage estimation"""
-    num_minibatches: int = 16
+    num_minibatches: int = 256
     """the number of mini-batches"""
     update_epochs: int = 4
     """the K epochs to update the policy"""
@@ -70,7 +64,7 @@ class Args:
     """the surrogate clipping coefficient"""
     clip_vloss: bool = True
     """Toggles whether or not to use a clipped loss for the value function, as per the paper."""
-    ent_coef: float = 0.05
+    ent_coef: float = 0.01
     """coefficient of the entropy"""
     vf_coef: float = 0.5
     """coefficient of the value function"""
@@ -86,153 +80,34 @@ class Args:
     """the mini-batch size (computed in runtime)"""
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
-    frame_cost: float = 2.0
-    budget: float = 25.0
     max_episode_steps: int = 500
+    """the number of maximum timesteps per episode"""
 
-def make_env(env_id, nav_model_path, frame_cost, budget, max_episode_steps):
+def make_env(env_id, nav_model_path, max_episode_steps):
     def thunk():
         nav_model = NavModel(nav_model_path, device=torch.device("cpu"))
         print("Navigation Model Loaded")
-        env = gym.make(env_id, frame_cost=frame_cost, budget=budget)
+        env = gym.make(env_id, max_episode_steps=max_episode_steps)
         env = TimeLimit(env, max_episode_steps=max_episode_steps)
         env.unwrapped.navigation_model = nav_model  # ← injected here
         env = gym.wrappers.RecordEpisodeStatistics(env)
         return env
     return thunk
 
-def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
-    torch.nn.init.orthogonal_(layer.weight, std)
-    torch.nn.init.constant_(layer.bias, bias_const)
-    return layer
-
-class Agent(nn.Module):
-    def __init__(self, envs, lstm_hidden_size = 64):
-        super().__init__()
-        
-        obs_dim   = np.array(envs.single_observation_space.shape).prod()
-
-        self.network = nn.Sequential(
-            layer_init(nn.Linear(obs_dim, 64)),
-            nn.Tanh(),
-        )
-
-        self.lstm = nn.LSTM(64, lstm_hidden_size)
-        for name, param in self.lstm.named_parameters():
-            if "bias" in name:
-                nn.init.constant_(param, 0)
-            elif "weight" in name:
-                nn.init.orthogonal_(param, 1.0)
-
-        self.critic = nn.Sequential(
-            layer_init(nn.Linear(lstm_hidden_size, 64)),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, 64)),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, 1), std=1.0),
-        )
-        self.actor = nn.Sequential(
-            layer_init(nn.Linear(lstm_hidden_size, 64)),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, 64)),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, envs.single_action_space.n), std=0.01),
-        )
-
-    def get_states(self, x, lstm_state, done):
-        """
-        Run input network + LSTM.
-        Resets hidden state automatically when done=True (episode boundary).
-
-        x:          (n_envs, obs_dim)
-        lstm_state: ((1, batch(n_envs), hidden), (1, batch(n_envs), hidden))
-        done:       (batch,)
-        """
-        hidden = self.network(x) # pass obs to the network: (n_envs,10) -> (n_envs, 64) 
-
-        # reshape for LSTM: (seq_len, batch, input_size)
-        batch_size = lstm_state[0].shape[1] #(n_envs)
-        hidden = hidden.reshape((-1, batch_size, self.lstm.input_size)) #-1 means infer this dimension automatically
-        done   = done.reshape((-1, batch_size))                         #-1 means infer this dimension automatically
-
-        # Example:
-        # During rollout:
-        # hidden shape: (16, 64)
-        # reshape(-1, 16, 64) → (1, 16, 64)   ← seq_len=1, one step at a time
-
-        # process step by step
-        # (1 - done) zeros out h and c when episode ends
-        new_hidden = []
-        for h, d in zip(hidden, done):
-            # h, lstm_state = self.lstm(h.unsqueeze(0), # first argument  — input features, (reset_h, reset_c),  # second argument — initial hidden state (h, c)
-            # the h output is the latent vector, and lastm_State is the final h,c memory updated.
-            h, lstm_state = self.lstm(
-                h.unsqueeze(0),
-                (
-                    (1.0 - d).view(1, -1, 1) * lstm_state[0],  # reset h if done
-                    (1.0 - d).view(1, -1, 1) * lstm_state[1],  # reset c if done
-                ),
-            )
-            new_hidden.append(h)
-
-        new_hidden = torch.flatten(torch.cat(new_hidden), 0, 1)
-        return new_hidden, lstm_state
-
-    def get_value(self, x, lstm_state, done):
-        hidden, _ = self.get_states(x, lstm_state, done)
-        return self.critic(hidden)
-
-    def get_action_and_value(self, x, lstm_state, done, action=None):
-        hidden, lstm_state = self.get_states(x, lstm_state, done)
-        logits = self.actor(hidden)
-        probs  = Categorical(logits=logits)
-        if action is None:
-            action = probs.sample()
-        return action, probs.log_prob(action), probs.entropy(), self.critic(hidden), lstm_state
-
-class NavAgent(nn.Module):
-    def __init__(self, obs_dim=8, n_actions=4):
-        super().__init__()
-        self.actor = nn.Sequential(
-            layer_init(nn.Linear(obs_dim, 64)), nn.Tanh(),
-            layer_init(nn.Linear(64, 64)), nn.Tanh(),
-            layer_init(nn.Linear(64, n_actions), std=0.01),
-        )
-        self.critic = nn.Sequential(
-            layer_init(nn.Linear(obs_dim, 64)), nn.Tanh(),
-            layer_init(nn.Linear(64, 64)), nn.Tanh(),
-            layer_init(nn.Linear(64, 1), std=1.0),
-        )
-    
-class NavModel:
-    """Frozen nav model wrapper with predict() interface."""
-    def __init__(self, model_path, device):
-        self.device = device
-        checkpoint = torch.load(model_path, map_location=device)
-        self.agent = NavAgent().to(device)
-        # handle both formats
-        if "model_state_dict" in checkpoint:
-            self.agent.load_state_dict(checkpoint["model_state_dict"])
-        else:
-            self.agent.load_state_dict(checkpoint)
-        self.agent.eval()
-
-    def predict(self, obs, deterministic=True):
-        obs_tensor = torch.Tensor(obs).unsqueeze(0).to(self.device)
-        with torch.no_grad():
-            action = torch.argmax(self.agent.actor(obs_tensor), dim=-1)
-        return action.cpu().numpy()[0], None
-
 if __name__ == "__main__":
-    # import multiprocessing
-    # multiprocessing.set_start_method("forkserver", force=True)
+    # Args parsing
     args = tyro.cli(Args)
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
 
+    # Generate output folders
     date_str = datetime.now().strftime("%d-%m-%H-%M-%S")
-    run_name = f"{args.env_id}_fc_{args.frame_cost}_bud_{args.budget}_{date_str}"
+    run_name = f"{args.env_id}_{date_str}"
+    run_path = f"experiments/highest_fps/runs/{run_name}"
+    os.makedirs(run_path, exist_ok=True)
+    checkpoint_path = f"{run_path}/ckpts"
+    os.makedirs(checkpoint_path, exist_ok=True)
 
     if args.track:
         import wandb
@@ -246,15 +121,17 @@ if __name__ == "__main__":
             monitor_gym=True,
             save_code=True,
         )
-    writer = SummaryWriter(f"runs/{run_name}")
+    writer = SummaryWriter(f"{run_path}")
     writer.add_text(
         "hyperparameters",
         "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
     )
-    info_file = os.path.join(f"runs/{run_name}", "info_settings.txt")
+
+    info_file = os.path.join(f"{run_path}", "info_settings.txt")
     with open(info_file, "w") as f:
         for key, value in vars(args).items():
             f.write(f"{key}: {value}\n")
+    print(f"Experiment info saved → {info_file}")
 
     # TRY NOT TO MODIFY: seeding
     random.seed(args.seed)
@@ -263,20 +140,15 @@ if __name__ == "__main__":
     torch.backends.cudnn.deterministic = args.torch_deterministic
 
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
-    nav_model_path = "runs/LunarLander-v3__ppo__1__1779191150/model.pt"
+    nav_model_path = "experiments/navigation/runs/LunarLander-v3__ppo__1__1779191150/model.pt"
 
     # env setup
     envs = gym.vector.SyncVectorEnv(
-        [make_env(args.env_id, nav_model_path, args.frame_cost, args.budget, args.max_episode_steps) 
-        for _ in range(args.num_envs)],
+        [make_env(args.env_id, nav_model_path, args.max_episode_steps) for i in range(args.num_envs)],
     )
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
     agent = Agent(envs).to(device)
-    next_lstm_state = (
-        torch.zeros(agent.lstm.num_layers, args.num_envs, agent.lstm.hidden_size).to(device),
-        torch.zeros(agent.lstm.num_layers, args.num_envs, agent.lstm.hidden_size).to(device),
-    )
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # ALGO Logic: Storage setup
@@ -293,22 +165,18 @@ if __name__ == "__main__":
     next_obs, _ = envs.reset(seed=args.seed)
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
-    
+
     # Chosen FPS plots 
     episode_fps_sum   = np.zeros(args.num_envs)
     episode_fps_count = np.zeros(args.num_envs)
 
     for iteration in range(1, args.num_iterations + 1):
-        initial_lstm_state = (next_lstm_state[0].clone(), next_lstm_state[1].clone())
         # Annealing the rate if instructed to do so.
         if args.anneal_lr:
             frac = 1.0 - (iteration - 1.0) / args.num_iterations
             lrnow = frac * args.learning_rate
             optimizer.param_groups[0]["lr"] = lrnow
 
-        # -----------------------------------------------------------------    
-        # ROLLOUT COLLECTION.
-        # -----------------------------------------------------------------
         for step in range(0, args.num_steps):
             global_step += args.num_envs
             obs[step] = next_obs
@@ -316,7 +184,7 @@ if __name__ == "__main__":
 
             # ALGO LOGIC: action logic
             with torch.no_grad():
-                action, logprob, _, value, next_lstm_state = agent.get_action_and_value(next_obs, next_lstm_state, next_done)
+                action, logprob, _, value = agent.get_action_and_value(next_obs)
                 values[step] = value.flatten()
             actions[step] = action
             logprobs[step] = logprob
@@ -351,19 +219,10 @@ if __name__ == "__main__":
                         # reset accumulators for this env
                         episode_fps_sum[i]   = 0
                         episode_fps_count[i] = 0
-            
-            if "frame_cost" in infos:
-                writer.add_scalar("charts/frame_cost", infos["frame_cost"][0], global_step)
-            if "budget" in infos:
-                writer.add_scalar("charts/budget", infos["budget"][0], global_step)
 
-        #Buffer os experience completed.
-
-        # -----------------------------------------------------------------    
-        # COMPUTING ADVANTAGES AND bootstrap value if EP in env not done
-        # -----------------------------------------------------------------
+        # bootstrap value if not done
         with torch.no_grad():
-            next_value = agent.get_value(next_obs, next_lstm_state, next_done).reshape(1, -1)
+            next_value = agent.get_value(next_obs).reshape(1, -1)
             advantages = torch.zeros_like(rewards).to(device)
             lastgaelam = 0
             for t in reversed(range(args.num_steps)):
@@ -376,58 +235,26 @@ if __name__ == "__main__":
                 delta = rewards[t] + args.gamma * nextvalues * nextnonterminal - values[t]
                 advantages[t] = lastgaelam = delta + args.gamma * args.gae_lambda * nextnonterminal * lastgaelam
             returns = advantages + values
-            #returns is a tensor of shape (1024, 16) — same shape as rewards and values.
 
-        # Buffer with experience + advantages and returns completed.
-
-        # -----------------------------------------------------------------    
-        # PREPARING FOR UPDATE
-        # -----------------------------------------------------------------
-        # Flat every dimenstion of the buffer.
+        # flatten the batch
         b_obs = obs.reshape((-1,) + envs.single_observation_space.shape)
         b_logprobs = logprobs.reshape(-1)
         b_actions = actions.reshape((-1,) + envs.single_action_space.shape)
         b_advantages = advantages.reshape(-1)
         b_returns = returns.reshape(-1)
         b_values = values.reshape(-1)
-        b_dones      = dones.reshape(-1)
-
-        # Shuffle Env not timesteps
-        assert args.num_envs % args.num_minibatches == 0
-        envs_per_minibatch = args.num_envs // args.num_minibatches
-        envs_indices       = np.arange(args.num_envs)
-        timestep_env_grid  = np.arange(args.batch_size).reshape(args.num_steps, args.num_envs)
-        # shape of timestep_env_grid: (1024, 16)
-        #
-        #         env0   env1   env2  ...  env15
-        # step0  [   0      1      2        15]
-        # step1  [  16     17     18        31]
-        # step2  [  32     33     34        47]
-        # ...
-        # step1023 [16368 16369  ...     16383]
 
         # Optimizing the policy and value network
-        #b_inds = np.arange(args.batch_size)
+        b_inds = np.arange(args.batch_size)
         clipfracs = []
         for epoch in range(args.update_epochs):
-            np.random.shuffle(envs_indices)
-            for start in range(0, args.num_envs, envs_per_minibatch):
-                end = start + envs_per_minibatch
-                minibatch_env_indices    = envs_indices[start:end]
-                minibatch_flat_indices   = timestep_env_grid[:, minibatch_env_indices].ravel()
-                minibatch_dones          = dones[:, minibatch_env_indices].reshape(-1)
+            np.random.shuffle(b_inds)
+            for start in range(0, args.batch_size, args.minibatch_size):
+                end = start + args.minibatch_size
+                mb_inds = b_inds[start:end]
 
-                _, newlogprob, entropy, newvalue, _ = agent.get_action_and_value(
-                    b_obs[minibatch_flat_indices],
-                    # replay from initial lstm state at start of rollout
-                    (
-                        initial_lstm_state[0][:, minibatch_env_indices],
-                        initial_lstm_state[1][:, minibatch_env_indices],
-                    ),
-                    minibatch_dones,
-                    b_actions.long()[minibatch_flat_indices],
-                )
-                logratio = newlogprob - b_logprobs[minibatch_flat_indices]
+                _, newlogprob, entropy, newvalue = agent.get_action_and_value(b_obs[mb_inds], b_actions.long()[mb_inds])
+                logratio = newlogprob - b_logprobs[mb_inds]
                 ratio = logratio.exp()
 
                 with torch.no_grad():
@@ -436,7 +263,7 @@ if __name__ == "__main__":
                     approx_kl = ((ratio - 1) - logratio).mean()
                     clipfracs += [((ratio - 1.0).abs() > args.clip_coef).float().mean().item()]
 
-                mb_advantages = b_advantages[minibatch_flat_indices]
+                mb_advantages = b_advantages[mb_inds]
                 if args.norm_adv:
                     mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
 
@@ -448,17 +275,17 @@ if __name__ == "__main__":
                 # Value loss
                 newvalue = newvalue.view(-1)
                 if args.clip_vloss:
-                    v_loss_unclipped = (newvalue - b_returns[minibatch_flat_indices]) ** 2
-                    v_clipped = b_values[minibatch_flat_indices] + torch.clamp(
-                        newvalue - b_values[minibatch_flat_indices],
+                    v_loss_unclipped = (newvalue - b_returns[mb_inds]) ** 2
+                    v_clipped = b_values[mb_inds] + torch.clamp(
+                        newvalue - b_values[mb_inds],
                         -args.clip_coef,
                         args.clip_coef,
                     )
-                    v_loss_clipped = (v_clipped - b_returns[minibatch_flat_indices]) ** 2
+                    v_loss_clipped = (v_clipped - b_returns[mb_inds]) ** 2
                     v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
                     v_loss = 0.5 * v_loss_max.mean()
                 else:
-                    v_loss = 0.5 * ((newvalue - b_returns[minibatch_flat_indices]) ** 2).mean()
+                    v_loss = 0.5 * ((newvalue - b_returns[mb_inds]) ** 2).mean()
 
                 entropy_loss = entropy.mean()
                 loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef
@@ -470,11 +297,9 @@ if __name__ == "__main__":
 
             if args.target_kl is not None and approx_kl > args.target_kl:
                 break
-                
+
         # ── Checkpoint saving ──────────────────
         if iteration % 50 == 0:  # save every 50 iterations
-            checkpoint_path = f"runs/{run_name}/ckpts/timestep_{global_step}_iterations_{iteration}"
-            os.makedirs(checkpoint_path, exist_ok=True)
             checkpoint_model_path = f"{checkpoint_path}/ckpt_{global_step}_iterations_{iteration}.pt"
             torch.save({
                 "model_state_dict":     agent.state_dict(),
@@ -482,8 +307,6 @@ if __name__ == "__main__":
                 "args":                 vars(args),
                 "global_step":          global_step,
                 "iteration":            iteration,
-                "next_lstm_state_h":    next_lstm_state[0].cpu(),
-                "next_lstm_state_c":    next_lstm_state[1].cpu(),
             }, checkpoint_model_path)
             print(f"  Checkpoint saved → {checkpoint_model_path}")
 
@@ -509,6 +332,6 @@ if __name__ == "__main__":
         "optimizer_state_dict": optimizer.state_dict(),
         "args": vars(args),
         "global_step": global_step,
-    }, f"runs/{run_name}/model.pt")
-    print(f"Model saved → runs/{run_name}/model.pt")
+    }, f"{run_path}/final.pt")
+    print(f"Model saved → {run_path}/final.pt")
     writer.close()

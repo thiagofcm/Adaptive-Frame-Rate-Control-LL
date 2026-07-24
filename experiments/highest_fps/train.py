@@ -40,11 +40,11 @@ class Args:
     # Algorithm specific arguments
     env_id: str = "LunarLander_HighestFPS"
     """the id of the environment"""
-    total_timesteps: int = 40_000_000
+    total_timesteps: int = 100_000_000
     """total timesteps of the experiments"""
     learning_rate: float = 3.0e-4
     """the learning rate of the optimizer"""
-    num_envs: int =  1 #16
+    num_envs: int =  16 #16
     """the number of parallel game environments"""
     num_steps: int = 1024
     """the number of steps to run in each environment per policy rollout"""
@@ -87,8 +87,7 @@ def make_env(env_id, nav_model_path, max_episode_steps):
     def thunk():
         nav_model = NavModel(nav_model_path, device=torch.device("cpu"))
         print("Navigation Model Loaded")
-        env = gym.make(env_id, max_episode_steps=max_episode_steps)
-        env = TimeLimit(env, max_episode_steps=max_episode_steps)
+        env = gym.make(env_id)
         env.unwrapped.navigation_model = nav_model  # ← injected here
         env = gym.wrappers.RecordEpisodeStatistics(env)
         return env
@@ -158,6 +157,7 @@ if __name__ == "__main__":
     rewards = torch.zeros((args.num_steps, args.num_envs)).to(device)
     dones = torch.zeros((args.num_steps, args.num_envs)).to(device)
     values = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    durations = torch.ones((args.num_steps, args.num_envs)).to(device)
 
     # TRY NOT TO MODIFY: start the game
     global_step = 0
@@ -195,6 +195,9 @@ if __name__ == "__main__":
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(next_done).to(device)
 
+            if "window_duration" in infos:
+                durations[step] = torch.tensor(infos["window_duration"], dtype=torch.float32).to(device)
+
             # log chosen fps every step
             if "chosen_fps" in infos:
                 for i in range(args.num_envs):
@@ -207,6 +210,7 @@ if __name__ == "__main__":
                     if done:
                         ep_return = infos["episode"]["r"][i]
                         ep_length = infos["episode"]["l"][i]
+                        ep_physics_steps = infos["physics_steps"][i]
 
                         # compute mean chosen fps for this episode
                         mean_fps = episode_fps_sum[i] / episode_fps_count[i] if episode_fps_count[i] > 0 else 0
@@ -214,6 +218,7 @@ if __name__ == "__main__":
                         print(f"global_step={global_step} | return={ep_return:.2f} | steps={ep_length}")
                         writer.add_scalar("charts/episodic_return", ep_return, global_step)
                         writer.add_scalar("charts/episodic_length", ep_length, global_step)
+                        writer.add_scalar("charts/episodic_physics_steps", ep_physics_steps, global_step)
                         writer.add_scalar("charts/mean_chosen_fps", mean_fps, global_step)
 
                         # reset accumulators for this env
@@ -226,14 +231,15 @@ if __name__ == "__main__":
             advantages = torch.zeros_like(rewards).to(device)
             lastgaelam = 0
             for t in reversed(range(args.num_steps)):
+                gamma_k = args.gamma ** durations[t]
                 if t == args.num_steps - 1:
                     nextnonterminal = 1.0 - next_done
                     nextvalues = next_value
                 else:
                     nextnonterminal = 1.0 - dones[t + 1]
                     nextvalues = values[t + 1]
-                delta = rewards[t] + args.gamma * nextvalues * nextnonterminal - values[t]
-                advantages[t] = lastgaelam = delta + args.gamma * args.gae_lambda * nextnonterminal * lastgaelam
+                delta = rewards[t] + gamma_k * nextvalues * nextnonterminal - values[t]
+                advantages[t] = lastgaelam = delta + gamma_k * args.gae_lambda * nextnonterminal * lastgaelam
             returns = advantages + values
 
         # flatten the batch
