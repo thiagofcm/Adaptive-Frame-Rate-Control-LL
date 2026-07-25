@@ -24,7 +24,7 @@ from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 from stable_baselines3 import PPO as SB3PPO
 from gymnasium.wrappers import TimeLimit
-import envs.lunar_lander_var_fps_simple_padd_v1
+import envs.lunar_lander_var_fps
 from datetime import datetime
 
 @dataclass
@@ -47,7 +47,7 @@ class Args:
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "LunarLander_VarFramerate_SimplePadded_v1"
+    env_id: str = "LunarLander_VarFramerate"
     """the id of the environment"""
     total_timesteps: int = 20000000
     """total timesteps of the experiments"""
@@ -92,6 +92,8 @@ class Args:
     frame_cost: float = 2.0
     budget: float = 100.0
     max_episode_steps: int = 500
+    nav_model_path: str = "runs/LunarLander-v3__ppo__1__1779191150/model.pt"
+    """path to the frozen navigation model checkpoint"""
     resume_path: str = None
     """path to a checkpoint .pt file to resume training from"""
     async_envs: bool = True
@@ -300,7 +302,7 @@ if __name__ == "__main__":
     torch.backends.cudnn.deterministic = args.torch_deterministic
 
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
-    nav_model_path = "runs/LunarLander-v3__ppo__1__1779191150/model.pt"
+    nav_model_path = args.nav_model_path
 
     # env setup
     env_fns = [make_env(args.env_id, nav_model_path, args.frame_cost, args.budget, args.max_episode_steps)

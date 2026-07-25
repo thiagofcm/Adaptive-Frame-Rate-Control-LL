@@ -1,6 +1,6 @@
 import gymnasium as gym
 import matplotlib.pyplot as plt
-import envs.lunar_lander_var_fps_simple_padd as lunar_lander_var_fps
+import envs.lunar_lander_var_fps as lunar_lander_var_fps
 import numpy as np
 import cv2
 import imageio
@@ -11,11 +11,11 @@ import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
 
-NAV_MODEL_PATH = "runs/LunarLander-v3__ppo__1__1779191150/model.pt"
+NAV_MODEL_PATH = "experiments/navigation/runs/LunarLander-v3__ppo__1__1779191150/model.pt"
 GIF_FPS = 30
 FPS_CHOICES = [1, 5, 10, 25, 50]
 LSTM_HIDDEN_SIZE = 64
-OBS_DIM = 10
+OBS_DIM = 11
 N_ACTIONS = 5
 
 # ------------------------------------------------------------------ #
@@ -36,10 +36,10 @@ def smooth(data, window=10):
 
 def add_fps_overlay(frame, chosen_fps, step):
     frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-    # cv2.putText(frame_bgr, f"FPS: {chosen_fps}", (10, 30),
-    #             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
-    # cv2.putText(frame_bgr, f"Step: {step}", (10, 60),
-    #             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(frame_bgr, f"FPS: {chosen_fps}", (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+    cv2.putText(frame_bgr, f"Step: {step}", (10, 60),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
     return cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
 
 
@@ -188,7 +188,7 @@ if __name__ == "__main__":
 
     for ep in range(args.n_ep):
 
-        env = gym.make("LunarLander_VarFramerate_SimplePadded",
+        env = gym.make("LunarLander_VarFramerate",
                        frame_cost=fc, budget=budget, render_mode="rgb_array")
         env.unwrapped.navigation_model = nav_model
         env = TimeLimit(env, max_episode_steps=500)

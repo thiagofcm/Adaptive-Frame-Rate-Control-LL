@@ -16,7 +16,7 @@ import gymnasium as gym
 from stable_baselines3 import PPO
 from gymnasium.wrappers import TimeLimit
 import argparse
-import envs.lunar_lander_var_fps_simple_padd as lunar_lander_var_fps
+import envs.lunar_lander_var_fps as lunar_lander_var_fps
 import re
 import torch.nn as nn
 import csv
@@ -26,7 +26,7 @@ import traceback
 from pathlib import Path
 
 
-OBS_DIM = 10
+OBS_DIM = 11
 ACTION_SPACE_LENGTH = 5
 LSTM_HIDDEN_SIZE = 64
 FPS_TO_ACTION = {1: 0, 5: 1, 10: 2, 25: 3, 50: 4}
@@ -38,7 +38,7 @@ N_EPISODES      = 100
 N_RUNS          = 1
 RUN_SEED        = 42
 MAX_EVAL_WORKERS = 16
-NAV_MODEL_PATH = "runs/LunarLander-v3__ppo__1__1779191150/model.pt"
+NAV_MODEL_PATH = "experiments/navigation/runs/LunarLander-v3__ppo__1__1779191150/model.pt"
 
 # =========================
 # SCORING WEIGHTS
@@ -154,7 +154,7 @@ def get_seeds(run, n_episodes):
 # Evaluate one model for one run
 # =========================
 def evaluate_model_single_run(model, nav_model, frame_cost, budget, fixed):
-    env = gym.make("LunarLander_VarFramerate_SimplePadded", frame_cost=frame_cost, budget=budget)
+    env = gym.make("LunarLander_VarFramerate", frame_cost=frame_cost, budget=budget)
     env.unwrapped.navigation_model = nav_model
     env = TimeLimit(env, max_episode_steps=500)
     seeds = range(RUN_SEED, RUN_SEED + N_EPISODES) 

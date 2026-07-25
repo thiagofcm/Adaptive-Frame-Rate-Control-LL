@@ -77,7 +77,7 @@ class ContactDetector(contactListener):
             if self.env.legs[i] in [contact.fixtureA.body, contact.fixtureB.body]:
                 self.env.legs[i].ground_contact = False
 
-class LunarLander_VarFramerate_v1(LunarLander):
+class LunarLander_VarFramerate(LunarLander):
     r"""
     ## Description
     This environment is a classic rocket trajectory optimization problem.
@@ -1017,23 +1017,7 @@ class LunarLander_VarFramerate_v1(LunarLander):
             self.isopen = False
 
 register(
-    id="LunarLander_VarFramerate_SimplePadded_v1",
-    entry_point="envs.lunar_lander_var_fps_simple_padd_v1:LunarLander_VarFramerate_v1",
+    id="LunarLander_VarFramerate",
+    entry_point="envs.lunar_lander_var_fps:LunarLander_VarFramerate",
     #max_episode_steps=500
 )
-
-
-# step N:
-#   1. predict navigation_action from last_sampled_obs (OLD obs)
-#   2. physics step → produces new obs
-#   3. current_obs = new obs
-#   4. sampling check → IF time to sample:
-#      last_sampled_obs = current_obs  ← NEW obs saved here
-#      frame_consumed = True
-#      frame_penalty applied to reward of step N
-
-# step N+1:
-#   1. predict navigation_action from last_sampled_obs (NEW obs) ← benefit felt HERE
-#   2. physics step → ...
-
-# so the penalty for a fresh obs is given at the moment it happens but the reward for a fresh obs is felt in the next step

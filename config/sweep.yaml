@@ -1,0 +1,34 @@
+# Sweep config for experiments/var_fps/train.py (LunarLander_VarFramerate).
+# experiments/var_fps/sweep.py takes the Cartesian product of the `sweep:` section
+# (a single dimension here: budget) and launches one train.py subprocess per
+# combination, each pinned to its own CPU core(s) via taskset.
+#
+# Same schema as config/var_fps_v1.yaml for every key except `sweep:` -- frame_cost is
+# held fixed at its usual default and budget is swept instead of being a plain key here.
+seed: 1
+total_timesteps: 20000000
+learning_rate: 0.0003
+num_envs: 32
+num_steps: 1024
+gamma: 0.99
+gae_lambda: 0.98
+num_minibatches: 16
+update_epochs: 4
+norm_adv: true
+clip_coef: 0.2
+clip_vloss: true
+ent_coef: 0.05
+vf_coef: 0.5
+max_grad_norm: 0.5
+anneal_lr: false
+frame_cost: 2.0
+max_episode_steps: 500
+# Relative to the repo root (sweep.py launches train.py subprocesses with cwd=REPO_ROOT
+# -- see LAUNCH_CWD in sweep.py), matching config/var_fps.yaml.
+nav_model_path: "experiments/navigation/runs/LunarLander-v3__ppo__1__1779191150/model.pt"
+async_envs: true
+
+# Sweep combinations -- experiments/var_fps/sweep.py builds the Cartesian product
+# across these lists (currently a single dimension: budget).
+sweep:
+  budget: [50]

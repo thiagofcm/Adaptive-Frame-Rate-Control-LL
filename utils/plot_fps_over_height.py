@@ -32,15 +32,15 @@ import gymnasium as gym
 from gymnasium.wrappers import TimeLimit
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
-import envs.lunar_lander_var_fps_simple_padd
+import envs.lunar_lander_var_fps
 
 # ══════════════════════════════════════════════════════
 # Defines
 # ══════════════════════════════════════════════════════
-NAV_MODEL_PATH = "runs/LunarLander-v3__ppo__1__1779191150/model.pt"
+NAV_MODEL_PATH = "experiments/navigation/runs/LunarLander-v3__ppo__1__1779191150/model.pt"
 FPS_CHOICES    = [1, 5, 10, 25, 50]
 LSTM_HIDDEN_SIZE = 64
-OBS_DIM          = 10
+OBS_DIM          = 11
 N_ACTIONS        = 5
 
 # ── Style ──────────────────────────────────────────────
@@ -167,7 +167,7 @@ def make_initial_lstm_state():
 
 def evaluate(agent, nav_model, budget, frame_cost, fixed_fps,seed):
 
-    env = gym.make("LunarLander_VarFramerate_SimplePadded",
+    env = gym.make("LunarLander_VarFramerate",
                    frame_cost=frame_cost, budget=budget)
     env.unwrapped.navigation_model = nav_model
     env = TimeLimit(env, max_episode_steps=500)
