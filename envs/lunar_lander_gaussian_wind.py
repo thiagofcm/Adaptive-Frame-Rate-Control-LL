@@ -2,18 +2,16 @@ __credits__ = ["Andrea PIERRÉ"]
 
 import math
 from typing import TYPE_CHECKING
-from collections import deque
+
 import numpy as np
-import torch
+
 import gymnasium as gym
 from gymnasium import error, spaces
 from gymnasium.error import DependencyNotInstalled
 from gymnasium.utils import EzPickle
 from gymnasium.utils.step_api_compatibility import step_api_compatibility
-from gymnasium.envs.box2d.lunar_lander import LunarLander
 from gymnasium.envs.registration import register
-from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import CallbackList
+
 
 try:
     import Box2D
@@ -33,6 +31,7 @@ except ImportError as e:
 
 if TYPE_CHECKING:
     import pygame
+
 
 FPS = 50
 SCALE = 30.0  # affects how fast-paced the game is, forces should be adjusted as well
@@ -57,6 +56,7 @@ MAIN_ENGINE_Y_LOCATION = (
 VIEWPORT_W = 600
 VIEWPORT_H = 400
 
+
 class ContactDetector(contactListener):
     def __init__(self, env):
         contactListener.__init__(self)
@@ -77,7 +77,8 @@ class ContactDetector(contactListener):
             if self.env.legs[i] in [contact.fixtureA.body, contact.fixtureB.body]:
                 self.env.legs[i].ground_contact = False
 
-class LunarLander_VarFramerate(LunarLander):
+
+class LunarLander_GaussianWind(gym.Env, EzPickle):
     r"""
     ## Description
     This environment is a classic rocket trajectory optimization problem.
@@ -128,7 +129,7 @@ class LunarLander_VarFramerate(LunarLander):
     The lander starts at the top center of the viewport with a random initial
     force applied to its center of mass.
 
-    ## Episode Termination/. 
+    ## Episode Termination
     The episode finishes if:
     1) the lander crashes (the lander body gets in contact with the moon);
     2) the lander gets outside of the viewport (`x` coordinate is greater than 1);
@@ -145,7 +146,7 @@ class LunarLander_VarFramerate(LunarLander):
 
     Lunar Lander has a large number of arguments
 
-    ```python 
+    ```python
     >>> import gymnasium as gym
     >>> env = gym.make("LunarLander-v3", continuous=False, gravity=-10.0,
     ...                enable_wind=False, wind_power=15.0, turbulence_power=1.5)
@@ -174,6 +175,10 @@ class LunarLander_VarFramerate(LunarLander):
 
     * `turbulence_power` dictates the maximum magnitude of rotational wind applied to the craft.
      The recommended value for `turbulence_power` is between 0.0 and 2.0.
+
+    * `vertical_wind_power` is the std-dev of an independent per-tick Gaussian force applied
+     straight up/down (perturbing `y`/`vy` the way `wind_power` perturbs `x`/`vx`). Default 0.0
+     (off).
 
     ## Version History
     - v3:
@@ -216,12 +221,10 @@ class LunarLander_VarFramerate(LunarLander):
         render_mode: str | None = None,
         continuous: bool = False,
         gravity: float = -10.0,
-        enable_wind: bool = False,
+        enable_wind: bool = True,
         wind_power: float = 15.0,
         turbulence_power: float = 1.5,
-        frame_cost: float = 0.0,
-        budget: float = 0.0,
-        navigation_model_path: str | None = None
+        vertical_wind_power: float = 0.0,
     ):
         EzPickle.__init__(
             self,
@@ -231,14 +234,12 @@ class LunarLander_VarFramerate(LunarLander):
             enable_wind,
             wind_power,
             turbulence_power,
-            frame_cost,
-            budget,
-            navigation_model_path,
+            vertical_wind_power,
         )
 
-        assert -12.0 < gravity and gravity < 0.0, (
-            f"gravity (current value: {gravity}) must be between -12 and 0"
-        )
+        assert (
+            -12.0 < gravity and gravity < 0.0
+        ), f"gravity (current value: {gravity}) must be between -12 and 0"
         self.gravity = gravity
 
         if 0.0 > wind_power or wind_power > 20.0:
@@ -252,7 +253,15 @@ class LunarLander_VarFramerate(LunarLander):
                 f"turbulence_power value is recommended to be between 0.0 and 2.0, (current value: {turbulence_power})"
             )
         self.turbulence_power = turbulence_power
-        self.enable_wind = False
+
+        # std-dev of a separate i.i.d. Gaussian force applied straight up/down each tick
+        # (independent draw from wind_power's horizontal one) -- perturbs (y, vy) the
+        # same way wind_power perturbs (x, vx): a direct force, integrated by Box2D, so
+        # it affects vy immediately and y through the resulting velocity change.
+        self.vertical_wind_power = vertical_wind_power
+
+        self.enable_wind = enable_wind
+
         self.screen: pygame.Surface = None
         self.clock = None
         self.isopen = True
@@ -260,111 +269,57 @@ class LunarLander_VarFramerate(LunarLander):
         self.moon = None
         self.lander: Box2D.b2Body | None = None
         self.particles = []
+
         self.prev_reward = None
+
         self.continuous = continuous
 
-        # Variable Framerate Settings:
-        self.simulation_fps= FPS
-        self.frame_cost = frame_cost
-        self.budget = budget
-        self.fps_choices = [1,5,10,25,50]
-        self.action_space = spaces.Discrete(len(self.fps_choices))
+        low = np.array(
+            [
+                # these are bounds for position
+                # realistically the environment should have ended
+                # long before we reach more than 50% outside
+                -2.5,  # x coordinate
+                -2.5,  # y coordinate
+                # velocity bounds is 5x rated speed
+                -10.0,
+                -10.0,
+                -2 * math.pi,
+                -10.0,
+                -0.0,
+                -0.0,
+            ]
+        ).astype(np.float32)
+        high = np.array(
+            [
+                # these are bounds for position
+                # realistically the environment should have ended
+                # long before we reach more than 50% outside
+                2.5,  # x coordinate
+                2.5,  # y coordinate
+                # velocity bounds is 5x rated speed
+                10.0,
+                10.0,
+                2 * math.pi,
+                10.0,
+                1.0,
+                1.0,
+            ]
+        ).astype(np.float32)
 
-        # Navigation Controller
-        if navigation_model_path is not None:
-            self.navigation_model = PPO.load(navigation_model_path)
+        # useful range is -1 .. +1, but spikes can be higher
+        self.observation_space = spaces.Box(low, high)
+
+        if self.continuous:
+            # Action is two floats [main engine, left-right engines].
+            # Main engine: -1..0 off, 0..+1 throttle from 50% to 100% power. Engine can't work with less than 50% power.
+            # Left-right:  -1.0..-0.5 fire left engine, +0.5..+1.0 fire right engine, -0.5..0.5 off
+            self.action_space = spaces.Box(-1, +1, (2,), dtype=np.float32)
         else:
-            self.navigation_model = None 
-        self.navigation_action_space = spaces.Discrete(4)
-
-        # Variable Framerate Variables:
-        self.world_step_count = 0
-        self.steps_since_last_obs = 0
-        self.current_fps = self.simulation_fps
-        self.obs_interval = 1
-        self.fps_penalty = 0.0
-        self.current_obs = None
-        self.landing_phase = True
-        self.last_sampled_obs = None
-        
-        # Mask and Padding Settings:
-        self.obs_seq_len = 1
-        self.single_obs_dim = 11 # 8 original obs + obs_age_ratio + fps_ratio + frame_counter
-        self.obs_buffer = deque(maxlen=self.obs_seq_len)
-
-        # Debbuging Mask
-        self.mask_buffer = deque(maxlen=self.obs_seq_len)
-
-        # Observation Space Declaration:
-        low_single = np.array(
-            [
-                # these are bounds for position
-                # realistically the environment should have ended
-                # long before we reach more than 50% outside
-
-                # Observation values (8)
-                -2.5,           # x coordinate
-                -2.5,           # y coordinate
-                -10.0,          # vx
-                -10.0,          # vy
-                -2 * math.pi,   # angle
-                -10.0,          # angular velocity
-                0.0,            # left leg contact
-                0.0,            # right leg contact
-
-                # Variable framerate values (3)
-                0.0,            # obs age ratio lower bound
-                0.0,            # fps ratio lower bound
-                0.0             # frame counter (episode_frame_count / budget) lower bound
-            ]
-        ).astype(np.float32)
-        high_single = np.array(
-            [
-                # these are bounds for position
-                # realistically the environment should have ended
-                # long before we reach more than 50% outside
-
-                # observation values (8)
-                2.5,            # x coordinate
-                2.5,            # y coordinate
-                10.0,           # vx
-                10.0,           # vy
-                2 * math.pi,    # angle
-                10.0,           # angular velocity
-                1.0,            # left leg contact
-                1.0,            # right leg contact
-
-                # Variable framerate values (3)
-                1.0,            # obs age ratio upper bound
-                1.0,            # fps ratio upper bound
-                1.0             # frame counter (episode_frame_count / budget) upper bound
-
-            ]
-        ).astype(np.float32)
-        
-        # low = np.repeat(low_single[None, :], self.obs_seq_len, axis=0)
-        # high = np.repeat(high_single[None, :], self.obs_seq_len, axis=0)
-
-        # self.observation_space = gym.spaces.Box(
-        #     low=low,
-        #     high=high,
-        #     dtype=np.float32
-        # )
-        self.observation_space = gym.spaces.Box(low=low_single, high=high_single, dtype=np.float32)
-
-        # if self.continuous:
-        #     # Action is two floats [main engine, left-right engines].
-        #     # Main engine: -1..0 off, 0..+1 throttle from 50% to 100% power. Engine can't work with less than 50% power.
-        #     # Left-right:  -1.0..-0.5 fire left engine, +0.5..+1.0 fire right engine, -0.5..0.5 off
-        #     self.action_space = spaces.Box(-1, +1, (2,), dtype=np.float32)
-        # else:
-        #     # Nop, fire left engine, main engine, right engine
-        #     self.action_space = spaces.Discrete(4)
+            # Nop, fire left engine, main engine, right engine
+            self.action_space = spaces.Discrete(4)
 
         self.render_mode = render_mode
-    
-    def _get_sequence_obs(self):
-        return self.obs_buffer[-1].astype(np.float32)
 
     def _destroy(self):
         if not self.moon:
@@ -384,12 +339,9 @@ class LunarLander_VarFramerate(LunarLander):
         seed: int | None = None,
         options: dict | None = None,
     ):
-        gym.Env.reset(self, seed=seed)
-
+        super().reset(seed=seed)
         self._destroy()
-        self.world_step_count = 0
-        self.touchdown_flag = False
-        self.fps_penalty = 0.0
+
         # Bug's workaround for: https://github.com/Farama-Foundation/Gymnasium/issues/728
         # Not sure why the self._destroy() is not enough to clean(reset) the total world environment elements, need more investigation on the root cause,
         # we must create a totally new world for self.reset(), or the bug#728 will happen
@@ -461,10 +413,6 @@ class LunarLander_VarFramerate(LunarLander):
             True,
         )
 
-        if self.enable_wind:  # Initialize wind pattern based on index
-            self.wind_idx = self.np_random.integers(-9999, 9999)
-            self.torque_idx = self.np_random.integers(-9999, 9999)
-
         # Create Lander Legs
         self.legs = []
         for i in [-1, +1]:
@@ -507,40 +455,7 @@ class LunarLander_VarFramerate(LunarLander):
 
         if self.render_mode == "human":
             self.render()
-        
-        # Clear the buffer of observations of size: lenght: seq_obs_len
-        self.obs_buffer.clear()
-
-        # Counts the number of frames that were actually acquired
-        self.episode_frame_count = 1
-        self.landing_phase = True
-        
-        # Step the world with 0 action to get the initial observation
-        obs, _, _, _, _ = self._physics_step(0)
-
-        # Updates the current observation, last sampled observation, current fps, obs interval, and steps since last observation
-        self.current_obs = np.array(obs, dtype=np.float32)
-        self.last_sampled_obs = np.array(obs, dtype=np.float32)
-        self.current_fps = self.fps_choices[-1]
-        self.obs_interval = int(self.simulation_fps/self.current_fps)
-        self.steps_since_last_obs = 0
-
-        # Copy the oservation values to a new variable, and augment it with the mask and extra info (age ratio and fps ratio)
-        obs_values = self.last_sampled_obs.copy()
-        aug_obs = self._get_augmented_obs(obs_values)
-
-        for _ in range(self.obs_seq_len):
-            self.obs_buffer.append(aug_obs.copy())
-            # Create the debugging observation mask, which indicates which values in the observation are valid (1 for valid, 0 for invalid)
-            self.mask_buffer.append(np.ones_like(self.last_sampled_obs, dtype=np.float32))
-
-        # Counts the number of frames that were actually acquired
-        self.episode_frame_count = 1
-
-        # Get the variable from the buffer and return it as the initial observation
-        reset_obs = self._get_sequence_obs()
-        
-        return reset_obs, {}
+        return self.step(np.array([0, 0]) if self.continuous else 0)[0], {}
 
     def _create_particle(self, mass, x, y, ttl):
         p = self.world.CreateDynamicBody(
@@ -564,7 +479,7 @@ class LunarLander_VarFramerate(LunarLander):
         while self.particles and (all_particle or self.particles[0].ttl < 0):
             self.world.DestroyBody(self.particles.pop(0))
 
-    def _physics_step(self, action):
+    def step(self, action):
         assert self.lander is not None
 
         # Update wind and apply to the lander
@@ -572,40 +487,35 @@ class LunarLander_VarFramerate(LunarLander):
         if self.enable_wind and not (
             self.legs[0].ground_contact or self.legs[1].ground_contact
         ):
-            # the function used for wind is tanh(sin(2 k x) + sin(pi k x)),
-            # which is proven to never be periodic, k = 0.01
-            wind_mag = (
-                math.tanh(
-                    math.sin(0.02 * self.wind_idx)
-                    + (math.sin(math.pi * 0.01 * self.wind_idx))
-                )
-                * self.wind_power
-            )
-            self.wind_idx += 1
+            # i.i.d. Gaussian force/torque each tick -- zero-mean and white (uncorrelated
+            # across ticks) by construction, unlike the deterministic tanh(sin+sin) curve
+            # this replaces. wind_power/turbulence_power are the std-dev of this per-tick
+            # draw here, not the max amplitude of a bounded deterministic wave.
+            wind_mag = self.np_random.normal(0.0, self.wind_power)
             self.lander.ApplyForceToCenter(
                 (wind_mag, 0.0),
                 True,
             )
 
-            # the function used for torque is tanh(sin(2 k x) + sin(pi k x)),
-            # which is proven to never be periodic, k = 0.01
-            torque_mag = (
-                math.tanh(
-                    math.sin(0.02 * self.torque_idx)
-                    + (math.sin(math.pi * 0.01 * self.torque_idx))
-                )
-                * self.turbulence_power
-            )
-            self.torque_idx += 1
+            torque_mag = self.np_random.normal(0.0, self.turbulence_power)
             self.lander.ApplyTorque(
                 torque_mag,
+                True,
+            )
+
+            # Independent i.i.d. Gaussian force in the vertical direction -- same
+            # mechanism as wind_mag above, just along y instead of x, with its own
+            # magnitude so it can be tuned (or disabled, at 0.0) separately.
+            vertical_wind_mag = self.np_random.normal(0.0, self.vertical_wind_power)
+            self.lander.ApplyForceToCenter(
+                (0.0, vertical_wind_mag),
                 True,
             )
 
         if self.continuous:
             action = np.clip(action, -1, +1).astype(np.float64)
         else:
-            assert self.navigation_action_space.contains(
+            assert self.action_space.contains(
                 action
             ), f"{action!r} ({type(action)}) invalid "
 
@@ -747,150 +657,18 @@ class LunarLander_VarFramerate(LunarLander):
         )  # less fuel spent is better, about -30 for heuristic landing
         reward -= s_power * 0.03
 
-        vy = abs(state[3])
-        height = state[1]
-        touchdown_check = (state[6] or state[7]) and not self.touchdown_flag
-        # self.touchdown_flag is a flag to know if the spacecraft has ever landed.
-        # If one of the legs touched the ground and the self.touchdown_flag is previously false,
-        # then touchdown_check is True, and the spacecraft just landed.
-        
-        if touchdown_check:
-            self.touchdown_flag = True
-            self.landing_phase = False
-            if vy > 0.2:
-                reward = -100
-        # If the spacecraft just landed, set touchdown_flag == True, so touchdown_check will be false and next step
-        # and this verification only happens once.
-        # If the spacecraft just landed, and vy > 0.2, penalizes for high velocity when landing.
-
-        if not self.touchdown_flag and self.episode_frame_count > self.budget and self.landing_phase:
-            # hasn't landed yet and used too many frames
-            reward = -100
-            self.landing_phase = False
-        #   If the spacecraft did not land yet (not self.touchdown_flag) and it consumed more than 50 frames and landing_phase is true:
-        #   apply a penalty for not being able to complete the landing using the budget.
-        #   set landing_phase = False so this penalty is not applied anymore.
-        #   OBS: The flag landing_phase = False means that now we are in the after_landing_phase, and frame_cost (in the step function) is applied.
-
-        # Termination Conditions
         terminated = False
         if self.game_over or abs(state[0]) >= 1.0:
             terminated = True
             reward = -100
-        elif not self.lander.awake:
+        if not self.lander.awake:
             terminated = True
             reward = +100
+
         if self.render_mode == "human":
             self.render()
         # truncation=False as the time limit is handled by the `TimeLimit` wrapper added during `make`
         return np.array(state, dtype=np.float32), reward, terminated, False, {}
-        
-    def _get_augmented_obs(self, obs_values):
-        obs_age_steps = self.steps_since_last_obs
-        # normalizing the num of steps since last obs
-        obs_age_ratio = obs_age_steps / self.simulation_fps
-        # normalizing the num of steps since last obs
-        fps_ratio = self.current_fps/self.simulation_fps
-        # how many decisions spent out of budget -- clean 0->1 ramp that hits 1.0
-        # exactly when the budget-overrun penalty (in _physics_step) is about to fire
-        frame_counter = np.clip(self.episode_frame_count / self.budget, 0, 1)
-
-        aug_obs = np.concatenate([
-            obs_values.astype(np.float32),
-            np.array([obs_age_ratio, fps_ratio, frame_counter], dtype=np.float32)])
-
-        return aug_obs
-        
-    def get_stale_obs(self):
-
-        return self.last_sampled_obs.copy() 
-
-    def step(self, action):
-        assert self.navigation_model is not None, \
-            "navigation_model is None — did you forget to inject it?"
-        
-        # Increment the world step count
-        self.world_step_count += 1
-        #print("FRAME COST: ", self.frame_cost)
-
-        # Increment the steps since last observation count
-        self.steps_since_last_obs += 1
-
-        # 1. Use the currently available sampled observation to compute navigation action
-        navigation_action, _ = self.navigation_model.predict(self.last_sampled_obs, deterministic=True)
-
-        # 2. Perform a physics step in the environment using the navigation action,
-        # and get the new observation, navigation reward, termination status, truncation status, and info
-        obs, nav_reward, terminated, truncated, info = self._physics_step(navigation_action)
-        
-        # 3. Update the current observation with the new observation obtained from the physics step
-        self.current_obs = obs.copy()
-
-        # 4. Check if it's time to sample a new observation based on the obs_interval
-        # If so, update the last sampled observation, reset the steps since last observation count, and increment the episode frame count
-        if self.steps_since_last_obs >= self.obs_interval:
-            # self.current_obs is updated every physics step, so here we store the fresh observation of this step
-            self.last_sampled_obs = self.current_obs.copy()
-            self.steps_since_last_obs = 0
-            self.episode_frame_count += 1
-            frame_consumed = True
-
-            # Update FPS and obs_interval based on the action taken by the agent
-            # the action is chosen at a sampling instant and affects future sampling
-            self.current_fps = self.fps_choices[int(action)]
-            self.obs_interval = int(self.simulation_fps / self.current_fps)
-            
-            # Debbuging mask, which indicates which values in the observation are valid (1 for valid, 0 for invalid)
-            obs_mask = np.ones_like(self.last_sampled_obs, dtype=np.float32)
-
-            # Copy the last sampled observation to a new variable, 
-            # which will be used for augmentation and storing in the buffer
-            obs_values = self.last_sampled_obs.copy()
-
-        else:
-            # If it's not time to sample a new observation, we use the last sampled
-            # observation (self.last_sampled_obs is not updated)
-            # get_stale_obs() generates a padded observation.
-            obs_values = self.get_stale_obs()
-
-            # Debbuging mask, which indicates which values in the observation are valid (1 for valid, 0 for invalid)
-            obs_mask = np.zeros_like(self.last_sampled_obs, dtype=np.float32)
-            frame_consumed = False
-        
-        # 5. Compute reward based on the navigation reward obtained from the physics step, and apply a penalty if a new frame was consumed
-        frame_penalty = self.frame_cost if frame_consumed else 0.0
-
-        if terminated:
-            reward = nav_reward
-        else:
-            reward = nav_reward - frame_penalty
-
-        # DEBBUGING: Cumulate the fps penalty for the episode, which can be used for analysis and debugging
-        self.fps_penalty += frame_penalty
-
-        # DEBBUGING: store the observation mask in a separate buffer for analysis
-        self.mask_buffer.append(obs_mask.copy())
-
-        # 6. Adds extra info (age ratio and fps ratio), and appends it to the observation buffer
-        aug_obs = self._get_augmented_obs(obs_values)
-        self.obs_buffer.append(aug_obs.copy())
-
-        new_obs = self._get_sequence_obs()
-        
-        info = dict(info)
-        info["reward"] = reward
-        info["nav_reward"] = nav_reward
-        info["frame_cost"] = self.frame_cost
-        info["budget"] = self.budget
-        info["chosen_fps"] = self.current_fps
-        info["episode_frame_count"] = self.episode_frame_count
-        info["timeout"] = truncated and not terminated
-        # Whether `action` this tick was actually applied (a real sampling instant) or
-        # silently discarded (obs_interval not yet elapsed) -- the training loop's
-        # policy-loss masking must not train on discarded-action ticks.
-        info["frame_consumed"] = frame_consumed
-
-        return self._get_sequence_obs(), reward, terminated, truncated, info
 
     def render(self):
         if self.render_mode is None:
@@ -1016,8 +794,8 @@ class LunarLander_VarFramerate(LunarLander):
             pygame.quit()
             self.isopen = False
 
+
 register(
-    id="LunarLander_VarFramerate",
-    entry_point="envs.lunar_lander_var_fps:LunarLander_VarFramerate",
-    #max_episode_steps=500
+    id="LunarLander_GaussianWind",
+    entry_point="envs.lunar_lander_gaussian_wind:LunarLander_GaussianWind",
 )

@@ -77,7 +77,7 @@ class ContactDetector(contactListener):
             if self.env.legs[i] in [contact.fixtureA.body, contact.fixtureB.body]:
                 self.env.legs[i].ground_contact = False
 
-class LunarLander_VarFramerate(LunarLander):
+class LunarLander_VarFramerate_BudTerm(LunarLander):
     r"""
     ## Description
     This environment is a classic rocket trajectory optimization problem.
@@ -763,16 +763,11 @@ class LunarLander_VarFramerate(LunarLander):
         # and this verification only happens once.
         # If the spacecraft just landed, and vy > 0.2, penalizes for high velocity when landing.
 
-        if not self.touchdown_flag and self.episode_frame_count > self.budget and self.landing_phase:
-            # hasn't landed yet and used too many frames
-            reward = -100
-            self.landing_phase = False
-        #   If the spacecraft did not land yet (not self.touchdown_flag) and it consumed more than 50 frames and landing_phase is true:
-        #   apply a penalty for not being able to complete the landing using the budget.
-        #   set landing_phase = False so this penalty is not applied anymore.
-        #   OBS: The flag landing_phase = False means that now we are in the after_landing_phase, and frame_cost (in the step function) is applied.
-
         # Termination Conditions
+        # NOTE: the budget-exceeded check used to live here too, but this function runs
+        # BEFORE step()'s own episode_frame_count increment for the current tick -- checking
+        # here always operated on a stale, one-tick-old count. It's now checked in step(),
+        # immediately after episode_frame_count is actually updated (see there).
         terminated = False
         if self.game_over or abs(state[0]) >= 1.0:
             terminated = True
@@ -780,6 +775,7 @@ class LunarLander_VarFramerate(LunarLander):
         elif not self.lander.awake:
             terminated = True
             reward = +100
+
         if self.render_mode == "human":
             self.render()
         # truncation=False as the time limit is handled by the `TimeLimit` wrapper added during `make`
@@ -792,7 +788,7 @@ class LunarLander_VarFramerate(LunarLander):
         # normalizing the num of steps since last obs
         fps_ratio = self.current_fps/self.simulation_fps
         # how many decisions spent out of budget -- clean 0->1 ramp that hits 1.0
-        # exactly when the budget-overrun penalty (in _physics_step) is about to fire
+        # exactly on the tick the budget-exceeded termination fires (see step())
         frame_counter = np.clip(self.episode_frame_count / self.budget, 0, 1)
 
         aug_obs = np.concatenate([
@@ -843,9 +839,20 @@ class LunarLander_VarFramerate(LunarLander):
             # Debbuging mask, which indicates which values in the observation are valid (1 for valid, 0 for invalid)
             obs_mask = np.ones_like(self.last_sampled_obs, dtype=np.float32)
 
-            # Copy the last sampled observation to a new variable, 
+            # Copy the last sampled observation to a new variable,
             # which will be used for augmentation and storing in the buffer
             obs_values = self.last_sampled_obs.copy()
+
+            # Budget check: must happen here, right after episode_frame_count is
+            # actually updated for this tick, not inside _physics_step() (which runs
+            # before this increment and would see a stale, one-tick-old count). >=
+            # (not >) so exceeding the budget fires exactly when episode_frame_count
+            # reaches self.budget, matching what info["episode_frame_count"] reports
+            # on this same terminating step.
+            if not self.touchdown_flag and self.episode_frame_count >= self.budget and self.landing_phase:
+                nav_reward = -100
+                self.landing_phase = False
+                terminated = True
 
         else:
             # If it's not time to sample a new observation, we use the last sampled
@@ -1017,7 +1024,7 @@ class LunarLander_VarFramerate(LunarLander):
             self.isopen = False
 
 register(
-    id="LunarLander_VarFramerate",
-    entry_point="envs.lunar_lander_var_fps:LunarLander_VarFramerate",
+    id="LunarLander_VarFramerate_BudTerm",
+    entry_point="envs.lunar_lander_var_fps_bud_term:LunarLander_VarFramerate_BudTerm",
     #max_episode_steps=500
 )

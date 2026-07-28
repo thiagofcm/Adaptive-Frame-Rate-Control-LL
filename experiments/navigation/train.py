@@ -12,6 +12,8 @@ import torch.optim as optim
 import tyro
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
+from gymnasium.wrappers import TimeLimit
+import envs.lunar_lander_gaussian_wind  # noqa: F401 -- import needed to register "LunarLander_GaussianWind"
 
 
 @dataclass
@@ -34,9 +36,9 @@ class Args:
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "LunarLander-v3"
+    env_id: str = "LunarLander_GaussianWind"
     """the id of the environment"""
-    total_timesteps: int = 5000000
+    total_timesteps: int = 20_000_000
     """total timesteps of the experiments"""
     learning_rate: float = 3.0e-4
     """the learning rate of the optimizer"""
@@ -77,14 +79,38 @@ class Args:
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
 
+    # Wind (process noise) arguments
+    enable_wind: bool = True
+    """if toggled, per-tick i.i.d. Gaussian force/torque disturbances are applied (see
+    envs/lunar_lander_gaussian_wind.py) -- off by default, preserving the original
+    no-wind nav model's training behavior unless explicitly opted into"""
+    wind_power: float = 20.0
+    """std-dev of the per-tick Gaussian force applied to the lander when enable_wind is
+    on -- NOT a max amplitude like gymnasium's stock deterministic wind; this is the
+    std-dev of an i.i.d. draw every physics tick"""
+    turbulence_power: float = 2.0
+    """std-dev of the per-tick Gaussian torque applied to the lander when enable_wind is
+    on -- same reinterpretation as wind_power, applies to rotational disturbance"""
+    vertical_wind_power: float = 20.0
+    """std-dev of a separate, independent per-tick Gaussian force applied straight
+    up/down when enable_wind is on -- perturbs (y, vy) the way wind_power perturbs
+    (x, vx). Default 0.0 (off)"""
+    max_episode_steps: int = 500
+    """outer TimeLimit -- LunarLander_GaussianWind has no max_episode_steps at
+    registration (unlike stock LunarLander-v3), so without this an episode that never
+    crashes or lands (increasingly likely at high wind_power) runs forever"""
 
-def make_env(env_id, idx, capture_video, run_name):
+
+def make_env(env_id, idx, capture_video, run_name, enable_wind, wind_power, turbulence_power, vertical_wind_power, max_episode_steps):
     def thunk():
+        env_kwargs = dict(enable_wind=enable_wind, wind_power=wind_power, turbulence_power=turbulence_power,
+                           vertical_wind_power=vertical_wind_power)
         if capture_video and idx == 0:
-            env = gym.make(env_id, render_mode="rgb_array")
+            env = gym.make(env_id, render_mode="rgb_array", **env_kwargs)
             env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
         else:
-            env = gym.make(env_id)
+            env = gym.make(env_id, **env_kwargs)
+        env = TimeLimit(env, max_episode_steps=max_episode_steps)
         env = gym.wrappers.RecordEpisodeStatistics(env)
         return env
 
@@ -131,7 +157,7 @@ if __name__ == "__main__":
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
-    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+    run_name = f"{args.env_id}__{args.exp_name}__wind{args.enable_wind}_{args.wind_power}_{args.turbulence_power}_vert{args.vertical_wind_power}__{args.seed}__{int(time.time())}"
     if args.track:
         import wandb
 
@@ -160,7 +186,8 @@ if __name__ == "__main__":
 
     # env setup
     envs = gym.vector.SyncVectorEnv(
-        [make_env(args.env_id, i, args.capture_video, run_name) for i in range(args.num_envs)],
+        [make_env(args.env_id, i, args.capture_video, run_name, args.enable_wind, args.wind_power, args.turbulence_power, args.vertical_wind_power, args.max_episode_steps)
+         for i in range(args.num_envs)],
     )
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
@@ -216,6 +243,15 @@ if __name__ == "__main__":
                         print(f"global_step={global_step} | return={ep_return:.2f} | steps={ep_length}")
                         writer.add_scalar("charts/episodic_return", ep_return, global_step)
                         writer.add_scalar("charts/episodic_length", ep_length, global_step)
+
+            # wind/turbulence are constant for the whole run -- logged every step purely
+            # as a debug trace, so a run's actual settings are visible/comparable
+            # directly in TensorBoard without having to check the hyperparameters text
+            writer.add_scalar("charts/enable_wind", float(args.enable_wind), global_step)
+            writer.add_scalar("charts/wind_power", args.wind_power, global_step)
+            writer.add_scalar("charts/turbulence_power", args.turbulence_power, global_step)
+            writer.add_scalar("charts/vertical_wind_power", args.vertical_wind_power, global_step)
+            writer.add_scalar("charts/max_episode_steps", args.max_episode_steps, global_step)
 
         # bootstrap value if not done
         with torch.no_grad():

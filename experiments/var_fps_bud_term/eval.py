@@ -16,7 +16,7 @@ import gymnasium as gym
 from stable_baselines3 import PPO
 from gymnasium.wrappers import TimeLimit
 import argparse
-import envs.lunar_lander_var_fps as lunar_lander_var_fps
+import envs.lunar_lander_var_fps_bud_term as lunar_lander_var_fps
 import re
 import torch.nn as nn
 import csv
@@ -153,8 +153,8 @@ def get_seeds(run, n_episodes):
 # =========================
 # Evaluate one model for one run
 # =========================
-def evaluate_model_single_run(model, nav_model, frame_cost, budget, fixed, vy_thr):
-    env = gym.make("LunarLander_VarFramerate", frame_cost=frame_cost, budget=budget)
+def evaluate_model_single_run(model, nav_model, frame_cost, budget, fixed):
+    env = gym.make("LunarLander_VarFramerate_BudTerm", frame_cost=frame_cost, budget=budget)
     env.unwrapped.navigation_model = nav_model
     env = TimeLimit(env, max_episode_steps=500)
     seeds = range(RUN_SEED, RUN_SEED + N_EPISODES) 
@@ -215,7 +215,7 @@ def evaluate_model_single_run(model, nav_model, frame_cost, budget, fixed, vy_th
                 touchdown_vy    = abs(true_obs[3])
                 touchdown_flag  = True
                 landed_in_flags = (-0.2 < true_obs[0] < 0.2)
-                exceed_vy_vel   = touchdown_vy > vy_thr
+                exceed_vy_vel   = touchdown_vy > 0.3
                 #print(f"  Ep {ep+1} | Touchdown → x={true_obs[0]:.3f} | vy={touchdown_vy:.4f} | in_flags={landed_in_flags}")
 
             # While grounded, check if drifts outside flags
@@ -265,7 +265,6 @@ if __name__ == "__main__":
     parser.add_argument("--fc", type=float, required=True)
     parser.add_argument("--budget", type=float, required=True)
     parser.add_argument("--fixed", type=float, default=0.0, required=False)
-    parser.add_argument("--vy_thr", type=float, default=0.5, required=False)
     args = parser.parse_args()
 
     model_path     = Path(args.model)
@@ -275,7 +274,6 @@ if __name__ == "__main__":
     results_folder = "score_results"
     output_dir     = os.path.join(results_folder, parent_folder)
     fixed          = args.fixed
-    vy_thr         = args.vy_thr
     os.makedirs(output_dir, exist_ok=True)
 
     device = torch.device("cpu")
@@ -307,7 +305,7 @@ if __name__ == "__main__":
 
     for run in range(N_RUNS):
         print(f"\nRun {run+1}/{N_RUNS}")
-        results = evaluate_model_single_run(agent, nav_model, frame_cost, budget, fixed, vy_thr)  # a matrix containing the result metrics of 100 different episodes
+        results = evaluate_model_single_run(agent, nav_model, frame_cost, budget, fixed)  # a matrix containing the result metrics of 100 different episodes
         run_metrics["rewards"].append(results["rewards"])                          # append the results into a matrix containing all the 10 runs (rows: RUNS (10), columns: EPISODES (100))
         run_metrics["nav_rewards"].append(results["nav_rewards"])
         run_metrics["frames"].append(results["frames"])
@@ -327,9 +325,9 @@ if __name__ == "__main__":
     # ── Save CSV ───────────────────────────────────────────────────────────────
     if fixed > 0:
         output_dir = "score_results/runs"
-        csv_path = os.path.join(output_dir, f"eval_results_fixed_{fixed}_vy_thr_{vy_thr}.csv")
+        csv_path = os.path.join(output_dir, f"eval_results_fixed_{fixed}.csv")
     else:
-        csv_path = os.path.join(output_dir, f"eval_results_vy_thr_{vy_thr}.csv")
+        csv_path = os.path.join(output_dir, "eval_results.csv")
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
         # Header

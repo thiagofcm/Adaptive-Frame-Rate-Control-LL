@@ -1,0 +1,1 @@
+This model was *trained* with vy thr > 0.4. The models *trained* on 25-07 were trained on vy_thr > 0.2

@@ -31,4 +31,4 @@ async_envs: true
 # Sweep combinations -- experiments/var_fps/sweep.py builds the Cartesian product
 # across these lists (currently a single dimension: budget).
 sweep:
-  budget: [50]
+  budget: [25, 30, 50, 75, 100, 100000]
