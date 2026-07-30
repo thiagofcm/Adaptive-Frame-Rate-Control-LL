@@ -670,21 +670,29 @@ class LunarLander_VarFramerate_KF(LunarLander):
             # (uncorrelated across ticks) by construction, matching envs/lunar_lander_
             # gaussian_wind.py. wind_power/vertical_wind_power/turbulence_power are the
             # std-dev of each per-tick draw, not a max amplitude of a deterministic wave.
+            # Draw order (wind_mag, torque_mag, vertical_wind_mag) deliberately matches
+            # envs/lunar_lander_gaussian_wind.py's exactly -- np_random.normal() just
+            # pulls the next raw number off the RNG stream and scales it by whatever std
+            # you pass, so for the SAME seed, a different call order assigns the same
+            # raw numbers to different physical quantities (scaled by different stds)
+            # in each env, silently diverging the two trajectories from tick 1. Keeping
+            # the order identical is what makes "same seed" actually comparable across
+            # the two env classes.
             wind_mag = self.np_random.normal(0.0, self.wind_power)
             self.lander.ApplyForceToCenter(
                 (wind_mag, 0.0),
                 True,
             )
 
-            vertical_wind_mag = self.np_random.normal(0.0, self.vertical_wind_power)
-            self.lander.ApplyForceToCenter(
-                (0.0, vertical_wind_mag),
-                True,
-            )
-
             torque_mag = self.np_random.normal(0.0, self.turbulence_power)
             self.lander.ApplyTorque(
                 torque_mag,
+                True,
+            )
+
+            vertical_wind_mag = self.np_random.normal(0.0, self.vertical_wind_power)
+            self.lander.ApplyForceToCenter(
+                (0.0, vertical_wind_mag),
                 True,
             )
 
@@ -981,7 +989,14 @@ class LunarLander_VarFramerate_KF(LunarLander):
             # values; the 2 leg-contact booleans are NOT run through the KF -- they're
             # the true current reading here, and get held (same mechanism as before,
             # unchanged) on stale ticks.
-            z = (self.current_obs[:6] + self.np_random.normal(0.0, self.sensor_noise_std, size=6))[self.kf_perm]
+            # Guarded like envs/lunar_lander_gaussian_wind.py's own sensor_noise_std
+            # check -- np_random.normal(scale=0.0, size=6) still CONSUMES 6 numbers
+            # from the RNG stream even though they get multiplied by 0, silently
+            # shifting every subsequent draw's stream position relative to a sibling
+            # env that skips the draw entirely at sensor_noise_std=0. Skipping it here
+            # too keeps "same seed" actually comparable between the two env classes.
+            noise = self.np_random.normal(0.0, self.sensor_noise_std, size=6) if self.sensor_noise_std > 0.0 else np.zeros(6)
+            z = (self.current_obs[:6] + noise)[self.kf_perm]
             self.kf_last_z = z.copy()
             innovation = z - self.kf_x
             S = self.kf_P + self.kf_R

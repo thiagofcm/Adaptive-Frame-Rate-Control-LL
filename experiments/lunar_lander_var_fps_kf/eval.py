@@ -38,7 +38,7 @@ N_EPISODES      = 1000
 N_RUNS          = 1
 RUN_SEED        = 42
 MAX_EVAL_WORKERS = 16
-NAV_MODEL_PATH = "runs/LunarLander_GaussianWind__train__windTrue_20.0_2.0_vert20.0__1__1785251869/model.pt"
+NAV_MODEL_PATH = "runs/LunarLander_GaussianWind__train__windTrue_20.0_2.0_vert20.0_sns0.05__1__1785419028/model.pt"
 
 
 # ══════════════════════════════════════════════════════
@@ -320,12 +320,17 @@ if __name__ == "__main__":
     for key in run_metrics:
         run_metrics[key] = np.array(run_metrics[key])
 
-    # mean per episode across runs → (N_EPISODES,), then average those
-    rew_m,  rew_std  = run_metrics["rewards"].mean(axis=0).mean(),              run_metrics["rewards"].std(axis=0).mean()
-    nav_m,  nav_std  = run_metrics["nav_rewards"].mean(axis=0).mean(),          run_metrics["nav_rewards"].std(axis=0).mean()
-    frm_m,  frm_std  = run_metrics["frames"].mean(axis=0).mean(),               run_metrics["frames"].std(axis=0).mean()
-    vy_m,   vy_std   = np.nanmean(run_metrics["vy"], axis=0).mean(),            np.nanstd(run_metrics["vy"], axis=0).mean()
-    succ_m, succ_std = run_metrics["success"].mean(axis=0).mean() * 100,        run_metrics["success"].std(axis=0).mean() * 100
+    # Mean/std over the FULL (n_runs, n_episodes) array at once -- NOT a
+    # mean(axis=0)/std(axis=0) followed by a second .mean(): with N_RUNS=1 (always, in
+    # this codebase), that axis=0 reduction is a single-sample reduction per episode --
+    # the mean is a harmless no-op, but the std is *always exactly 0.0* by definition
+    # (std of one number), regardless of the actual episode-to-episode spread.
+    rew_m,  rew_std  = run_metrics["rewards"].mean(),              run_metrics["rewards"].std()
+    nav_m,  nav_std  = run_metrics["nav_rewards"].mean(),          run_metrics["nav_rewards"].std()
+    frm_m,  frm_std  = run_metrics["frames"].mean(),               run_metrics["frames"].std()
+    # np.nanmean/nanstd: touchdown_vy is nan for episodes that never touch down.
+    vy_m,   vy_std   = np.nanmean(run_metrics["vy"]),            np.nanstd(run_metrics["vy"])
+    succ_m, succ_std = run_metrics["success"].mean() * 100,        run_metrics["success"].std() * 100
 
     # ── Save CSV ───────────────────────────────────────────────────────────────
     if fixed > 0:

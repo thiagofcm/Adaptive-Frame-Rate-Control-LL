@@ -1,4 +1,4 @@
-# running: python -m experiments.navigation.eval_nav_wind --model runs/LunarLander_GaussianWind__train__windFalse_15.0_1.5__1__1785187605/model.pt --enable-wind --wind-power 80.0 --turbulence-power 0.0 --vertical-wind-power 0.0 --vy-thr
+# running: python -m experiments.navigation_kf.eval --model runs/LunarLander_GaussianWind_KF__train__windTrue_.../model.pt --enable-wind --wind-power 20.0 --turbulence-power 2.0 --vertical-wind-power 20.0 --sensor-noise-std 0.05
 
 import os
 os.environ["OMP_NUM_THREADS"]    = "1"
@@ -18,8 +18,8 @@ import argparse
 import torch.nn as nn
 import csv
 from pathlib import Path
-import envs.lunar_lander_gaussian_wind  # noqa: F401 -- import needed to register "LunarLander_GaussianWind"
-from envs.lunar_lander_gaussian_wind import VIEWPORT_W, VIEWPORT_H, SCALE, LEG_DOWN, FPS
+import envs.lunar_lander_gaussian_wind_kf  # noqa: F401 -- import needed to register "LunarLander_GaussianWind_KF"
+from envs.lunar_lander_gaussian_wind_kf import VIEWPORT_W, VIEWPORT_H, SCALE, LEG_DOWN, FPS
 
 
 OBS_DIM = 8
@@ -70,10 +70,11 @@ class AgentEval(nn.Module):
 # =========================
 def get_true_state8(u):
     """True 8-dim state read directly from Box2D -- NOT the returned observation,
-    which carries injected sensor_noise_std measurement noise once that's > 0. Success/
-    touchdown scoring must use this, not the noisy obs, or near-threshold episodes
-    (landed_in_flags's +-0.2 bound, the vy_thr crossing) get randomly flipped by
-    measurement noise rather than reflecting the actual landing -- same principle as
+    which is the Kalman filter's fused estimate (differs from true state whenever
+    sensor_noise_std > 0, since the Kalman gain is then < identity). Success/touchdown
+    scoring must use this, not the fused obs, or near-threshold episodes (landed_in_
+    flags's +-0.2 bound, the vy_thr crossing) get flipped by residual filter error
+    rather than reflecting the actual landing -- same principle as
     experiments/lunar_lander_var_fps_kf/eval.py's true_obs = env.unwrapped.current_obs."""
     pos = u.lander.position
     vel = u.lander.linearVelocity
@@ -90,12 +91,12 @@ def get_true_state8(u):
 
 
 def evaluate_model_single_run(model, enable_wind, wind_power, turbulence_power, vertical_wind_power, sensor_noise_std, vy_thr, max_episode_steps):
-    env = gym.make("LunarLander_GaussianWind", enable_wind=enable_wind,
+    env = gym.make("LunarLander_GaussianWind_KF", enable_wind=enable_wind,
                     wind_power=wind_power, turbulence_power=turbulence_power,
                     vertical_wind_power=vertical_wind_power, sensor_noise_std=sensor_noise_std)
-    # LunarLander_GaussianWind has no max_episode_steps at registration -- without this,
-    # an episode that never crashes or lands under wind (quite possible for a nav model
-    # that was never trained to handle wind) runs forever.
+    # LunarLander_GaussianWind_KF has no max_episode_steps at registration -- without
+    # this, an episode that never crashes or lands under wind (quite possible for a nav
+    # model that was never trained to handle wind) runs forever.
     env = TimeLimit(env, max_episode_steps=max_episode_steps)
     u = env.unwrapped
     seeds = range(RUN_SEED, RUN_SEED + N_EPISODES)
@@ -183,7 +184,7 @@ if __name__ == "__main__":
     parser.add_argument("--wind-power",       type=float, default=20.0, help="std-dev of the per-tick Gaussian force")
     parser.add_argument("--turbulence-power", type=float, default=2.0,  help="std-dev of the per-tick Gaussian torque")
     parser.add_argument("--vertical-wind-power", type=float, default=20.0, help="std-dev of the per-tick Gaussian vertical (y/vy) force")
-    parser.add_argument("--sensor-noise-std", type=float, default=0.05, help="std-dev of Gaussian measurement noise added to the 6 continuous obs dims (0.0 = off)")
+    parser.add_argument("--sensor-noise-std", type=float, default=0.05, help="std-dev of the Kalman filter's measurement noise R (0.0 = filter fully trusts each reading, K=I)")
     parser.add_argument("--vy_thr", type=float, default=0.5, required=False, help="touchdown vy threshold for success (m/s)")
     parser.add_argument("--max_episode_steps", type=int, default=500, required=False)
     args = parser.parse_args()

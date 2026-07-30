@@ -29,6 +29,7 @@ import gymnasium as gym
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from PIL import Image, ImageDraw
 
 import envs.lunar_lander_var_fps_kf  # noqa: F401 -- registers "LunarLander_VarFramerate_KF"
 from envs.lunar_lander_var_fps_kf import VIEWPORT_W, VIEWPORT_H, SCALE, LEG_DOWN, FPS
@@ -36,7 +37,7 @@ from envs.lunar_lander_var_fps_kf import VIEWPORT_W, VIEWPORT_H, SCALE, LEG_DOWN
 STATE_NAMES = ["x", "vx", "y", "vy", "angle", "angular_velocity"]
 
 NAV_MODEL_PATH = os.path.join(
-    REPO_ROOT, "runs/LunarLander_GaussianWind__train__windTrue_20.0_2.0_vert20.0__1__1785251869/model.pt"
+    REPO_ROOT, "runs/LunarLander_GaussianWind__train__windTrue_20.0_2.0_vert20.0_sns0.05__1__1785419028/model.pt"
 )
 
 
@@ -125,7 +126,7 @@ CONFIGS = {
     # mismatch simplification, not a wiring bug.
     "noiseless": dict(
         enable_wind=False, wind_power=20.0, turbulence_power=2.0, vertical_wind_power=20.0,
-        sensor_noise_std=1e-3, fixed_fps=10,
+        sensor_noise_std=0.05, fixed_fps=50,
     ),
     # Wind on (matching the nav model's own training conditions), FPS pinned to 1 for
     # the whole episode -- longest possible stale stretches (50 physics ticks between
@@ -162,13 +163,25 @@ CONFIGS = {
 # Episode runner
 # ══════════════════════════════════════════════════════
 
-def run_episode(cfg, seed, max_steps):
+def add_gif_title(frame, seed, config_name, tick, sampled, grounded):
+    img = Image.fromarray(frame)
+    draw = ImageDraw.Draw(img)
+    title = f"seed={seed}  config={config_name}  tick={tick}"
+    status = f"{'SAMPLE' if sampled else 'stale'}{'  GROUNDED' if grounded else ''}"
+    draw.text((10, 10), title, fill=(255, 255, 255))
+    draw.text((10, 26), status, fill=(0, 255, 0) if sampled else (255, 200, 0))
+    return img
+
+
+def run_episode(cfg, config_name, seed, max_steps, record_gif=False):
+    render_mode = "rgb_array" if record_gif else None
     env = gym.make(
         "LunarLander_VarFramerate_KF",
         frame_cost=0.0, budget=1e9,
         enable_wind=cfg["enable_wind"], wind_power=cfg["wind_power"],
         turbulence_power=cfg["turbulence_power"], vertical_wind_power=cfg["vertical_wind_power"],
         sensor_noise_std=cfg["sensor_noise_std"],
+        render_mode=render_mode,
     )
     u = env.unwrapped
     device = torch.device("cpu")
@@ -181,6 +194,7 @@ def run_episode(cfg, seed, max_steps):
     obs, info = env.reset(seed=seed)
 
     log = {"true": [], "kf_x": [], "P_diag": [], "sampled": [], "grounded": [], "held": [], "K_diag": []}
+    frames = [] if record_gif else None
 
     true0 = get_true_state(u)
     # Tick 0 has no sensor reading yet -- kf_x itself is seeded noiselessly at reset
@@ -188,16 +202,19 @@ def run_episode(cfg, seed, max_steps):
     # here matches kf_x's own seeding, not an inconsistency.
     held_state = true0.copy()
 
-    def record(sampled):
+    def record(sampled, tick):
         log["true"].append(get_true_state(u))
         log["kf_x"].append(u.kf_x.copy())
         log["P_diag"].append(np.diag(u.kf_P).copy())
         log["sampled"].append(sampled)
-        log["grounded"].append(bool(u.legs[0].ground_contact or u.legs[1].ground_contact))
+        grounded = bool(u.legs[0].ground_contact or u.legs[1].ground_contact)
+        log["grounded"].append(grounded)
         log["held"].append(held_state.copy())
         log["K_diag"].append(np.diag(u.kf_K).copy() if u.kf_K is not None else np.full(6, np.nan))
+        if record_gif:
+            frames.append(add_gif_title(env.render(), seed, config_name, tick, sampled, grounded))
 
-    record(sampled=True)  # tick 0: the reset-seeded state (KF x == true state, P == 0)
+    record(sampled=True, tick=0)  # tick 0: the reset-seeded state (KF x == true state, P == 0)
 
     terminated = truncated = False
     steps = 0
@@ -214,7 +231,7 @@ def run_episode(cfg, seed, max_steps):
             held_state = u.kf_last_z.copy()
             print(f"  tick {steps:4d} | SAMPLE | K diag = {np.round(np.diag(u.kf_K), 4)}")
 
-        record(sampled=sampled)
+        record(sampled=sampled, tick=steps)
 
         if terminated or truncated:
             print(f"Episode ended at tick {steps} (terminated={terminated}, truncated={truncated})")
@@ -222,7 +239,7 @@ def run_episode(cfg, seed, max_steps):
     env.close()
     for k in log:
         log[k] = np.array(log[k])
-    return log
+    return log, frames
 
 
 # ══════════════════════════════════════════════════════
@@ -298,9 +315,26 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--max_steps", type=int, default=500)
     parser.add_argument("--output_dir", type=str, default=os.path.join(REPO_ROOT, "KF", "debug_plots"))
+    parser.add_argument("--gif", action="store_true",
+                         help="also render the episode and save it as a GIF (seed + config in the filename, same output_dir as the plots)")
+    parser.add_argument("--gif_fps", type=int, default=50,
+                         help="GIF playback speed in frames/sec -- default 50 matches the physics tick rate (real-time)")
     args = parser.parse_args()
 
     cfg = CONFIGS[args.config]
     print(f"Config '{args.config}': {cfg}")
-    log = run_episode(cfg, seed=args.seed, max_steps=args.max_steps)
+    log, frames = run_episode(cfg, args.config, seed=args.seed, max_steps=args.max_steps, record_gif=args.gif)
     plot_results(log, args.config, args.output_dir, args.seed)
+
+    if args.gif:
+        os.makedirs(args.output_dir, exist_ok=True)
+        gif_path = os.path.join(args.output_dir, f"episode_seed{args.seed}_{args.config}.gif")
+        duration_ms = int(1000 / args.gif_fps)
+        frames[0].save(
+            gif_path,
+            save_all=True,
+            append_images=frames[1:],
+            duration=duration_ms,
+            loop=0,
+        )
+        print(f"GIF saved: {gif_path} ({len(frames)} frames)")

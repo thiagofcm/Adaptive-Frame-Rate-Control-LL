@@ -13,7 +13,7 @@ import tyro
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 from gymnasium.wrappers import TimeLimit
-import envs.lunar_lander_gaussian_wind  # noqa: F401 -- import needed to register "LunarLander_GaussianWind"
+import envs.lunar_lander_gaussian_wind_kf  # noqa: F401 -- import needed to register "LunarLander_GaussianWind_KF"
 
 
 @dataclass
@@ -36,9 +36,12 @@ class Args:
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "LunarLander_GaussianWind"
-    """the id of the environment"""
-    total_timesteps: int = 20_000_000
+    env_id: str = "LunarLander_GaussianWind_KF"
+    """the id of the environment -- this variant runs a Kalman filter every tick
+    (fusing a noisy reading with a prediction), instead of returning the raw noisy
+    reading directly like LunarLander_GaussianWind does. See
+    envs/lunar_lander_gaussian_wind_kf.py."""
+    total_timesteps: int = 50_000_000
     """total timesteps of the experiments"""
     learning_rate: float = 3.0e-4
     """the learning rate of the optimizer"""
@@ -82,26 +85,27 @@ class Args:
     # Wind (process noise) arguments
     enable_wind: bool = True
     """if toggled, per-tick i.i.d. Gaussian force/torque disturbances are applied (see
-    envs/lunar_lander_gaussian_wind.py) -- off by default, preserving the original
+    envs/lunar_lander_gaussian_wind_kf.py) -- off by default, preserving the original
     no-wind nav model's training behavior unless explicitly opted into"""
-    wind_power: float = 40.0
+    wind_power: float = 15.0
     """std-dev of the per-tick Gaussian force applied to the lander when enable_wind is
     on -- NOT a max amplitude like gymnasium's stock deterministic wind; this is the
     std-dev of an i.i.d. draw every physics tick"""
-    turbulence_power: float = 3.0
+    turbulence_power: float = 1.5
     """std-dev of the per-tick Gaussian torque applied to the lander when enable_wind is
     on -- same reinterpretation as wind_power, applies to rotational disturbance"""
-    vertical_wind_power: float = 30.0
+    vertical_wind_power: float = 15.0
     """std-dev of a separate, independent per-tick Gaussian force applied straight
     up/down when enable_wind is on -- perturbs (y, vy) the way wind_power perturbs
     (x, vx). Default 0.0 (off)"""
     sensor_noise_std: float = 0.05
-    """std-dev of i.i.d. Gaussian measurement noise added to the 6 continuous
-    observation dims (not the leg-contact booleans) -- distinct from the wind/
-    turbulence forces above, which perturb the true dynamics rather than what's
-    observed. Default 0.0 (off, matches historical behavior)"""
+    """std-dev of the Kalman filter's measurement noise (R = sensor_noise_std**2 * I)
+    -- the noisy reading the KF fuses with its prediction every tick to produce the
+    returned observation, not applied unfiltered like in LunarLander_GaussianWind.
+    Distinct from the wind/turbulence forces above, which perturb the true dynamics
+    rather than what's observed."""
     max_episode_steps: int = 500
-    """outer TimeLimit -- LunarLander_GaussianWind has no max_episode_steps at
+    """outer TimeLimit -- LunarLander_GaussianWind_KF has no max_episode_steps at
     registration (unlike stock LunarLander-v3), so without this an episode that never
     crashes or lands (increasingly likely at high wind_power) runs forever"""
 
