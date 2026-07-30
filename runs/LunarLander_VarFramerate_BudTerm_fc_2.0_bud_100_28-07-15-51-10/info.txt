@@ -1,0 +1,1 @@
+Being trained on vy_thr > 0.4

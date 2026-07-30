@@ -77,7 +77,7 @@ class ContactDetector(contactListener):
             if self.env.legs[i] in [contact.fixtureA.body, contact.fixtureB.body]:
                 self.env.legs[i].ground_contact = False
 
-class LunarLander_VarFramerate(LunarLander):
+class LunarLander_VarFramerate_KF(LunarLander):
     r"""
     ## Description
     This environment is a classic rocket trajectory optimization problem.
@@ -219,6 +219,8 @@ class LunarLander_VarFramerate(LunarLander):
         enable_wind: bool = False,
         wind_power: float = 15.0,
         turbulence_power: float = 1.5,
+        vertical_wind_power: float = 0.0,
+        sensor_noise_std: float = 0.05,
         frame_cost: float = 0.0,
         budget: float = 0.0,
         navigation_model_path: str | None = None
@@ -231,6 +233,8 @@ class LunarLander_VarFramerate(LunarLander):
             enable_wind,
             wind_power,
             turbulence_power,
+            vertical_wind_power,
+            sensor_noise_std,
             frame_cost,
             budget,
             navigation_model_path,
@@ -252,7 +256,12 @@ class LunarLander_VarFramerate(LunarLander):
                 f"turbulence_power value is recommended to be between 0.0 and 2.0, (current value: {turbulence_power})"
             )
         self.turbulence_power = turbulence_power
-        self.enable_wind = False
+        # std-dev of a separate i.i.d. Gaussian force applied straight up/down each tick
+        # (independent draw from wind_power's horizontal one) -- perturbs (y, vy) the
+        # same way wind_power perturbs (x, vx).
+        self.vertical_wind_power = vertical_wind_power
+        self.sensor_noise_std = sensor_noise_std
+        self.enable_wind = enable_wind
         self.screen: pygame.Surface = None
         self.clock = None
         self.isopen = True
@@ -274,8 +283,47 @@ class LunarLander_VarFramerate(LunarLander):
         if navigation_model_path is not None:
             self.navigation_model = PPO.load(navigation_model_path)
         else:
-            self.navigation_model = None 
+            self.navigation_model = None
         self.navigation_action_space = spaces.Discrete(4)
+
+        # Kalman Filter Setup. The KF's OWN internal state order is
+        # [x, vx, y, vy, angle, angular_velocity] -- chosen so Q/F are simple contiguous
+        # 2x2 blocks -- which is NOT the raw obs order [x, y, vx, vy, angle,
+        # angular_velocity] used by `state` in _physics_step(). kf_perm converts between
+        # the two orderings; it's a self-inverse transposition (swaps positions 1<->2),
+        # so `arr[self.kf_perm]` converts either direction. (kf_x, kf_P) get
+        # (re)initialized per-episode in reset(); so does kf_Q (needs lander mass/
+        # inertia, only known once a body exists -- see reset()).
+        self.kf_perm = np.array([0, 2, 1, 3, 4, 5])
+
+        # state[0]/state[2] (position) divide the raw Box2D position by these norms;
+        # state[1]/state[3] (velocity) MULTIPLY raw velocity by the same norms (over
+        # FPS) -- an asymmetric scaling. Because of that asymmetry, the position-from-
+        # velocity coefficient in F is NOT dt=1/FPS (that would be true only for a
+        # symmetric/unscaled representation) -- it's 1/norm**2, derived below. Likewise
+        # angle (state[4]) is unscaled while angular_velocity (state[5]) is scaled by
+        # 20/FPS, giving a fixed 1/20 coefficient, not dt either.
+        #
+        # Derivation (position/velocity pair, dropping the position offset -- it cancels
+        # in the incremental update regardless of its value, so y's per-episode
+        # helipad-relative offset doesn't need special handling):
+        #   state_pos = raw_pos/norm ; state_vel = raw_vel*norm/FPS
+        #   raw_pos_{t+1} = raw_pos_t + raw_vel_t/FPS  (Euler step over one physics tick)
+        #   => state_pos_{t+1} = state_pos_t + state_vel_t/norm**2
+        self._kf_norm_x = VIEWPORT_W / SCALE / 2
+        self._kf_norm_y = VIEWPORT_H / SCALE / 2
+        self.kf_F = np.eye(6)
+        self.kf_F[0, 1] = 1.0 / (self._kf_norm_x ** 2)   # x from vx
+        self.kf_F[2, 3] = 1.0 / (self._kf_norm_y ** 2)   # y from vy
+        self.kf_F[4, 5] = 1.0 / 20.0                       # angle from angular_velocity
+
+        self.kf_R = (sensor_noise_std ** 2) * np.eye(6)
+
+        # Gravity's fixed per-tick contribution to (state-scaled) vy -- a known,
+        # deterministic drift, not process noise. Box2D integrates gravity into
+        # linearVelocity.y over dt = 1/FPS each world.Step(); state[3] scales raw
+        # velocity by (VIEWPORT_H/SCALE/2)/FPS, so the delta gets the same scaling.
+        self.kf_gravity_dvy = (gravity / self.simulation_fps) * (VIEWPORT_H / SCALE / 2) / self.simulation_fps
 
         # Variable Framerate Variables:
         self.world_step_count = 0
@@ -452,6 +500,38 @@ class LunarLander_VarFramerate(LunarLander):
         self.lander.color1 = (128, 102, 230)
         self.lander.color2 = (77, 77, 128)
 
+        # Box2D-computed exact mass/inertia for this fresh body -- used by
+        # _kf_thrust_delta() to convert impulses into velocity/angular-velocity deltas,
+        # and below to convert wind_power/vertical_wind_power/turbulence_power (force/
+        # torque std-devs) into acceleration std-devs for Q. Read once per episode
+        # since a new body is created every reset (mass/inertia are actually identical
+        # every episode -- same fixed density/shape -- recomputing is just cheap/simple).
+        self.kf_mass = self.lander.mass
+        self.kf_inertia = self.lander.inertia
+
+        # Q, continued from __init__: each 2x2 block is the standard discretized
+        # constant-velocity-model noise (q_raw * [[dt**3/3, dt**2/2],[dt**2/2, dt]]),
+        # with q_raw = (force_std / mass)**2 (or torque_std / inertia for the angular
+        # block) -- converting the injected force/torque's std-dev into the
+        # acceleration-noise std-dev the raw-unit CV-noise formula expects -- then
+        # transformed into this env's scaled state units via D @ block @ D.T, where D
+        # is the same (state_pos, state_vel) scaling used by kf_F (see its comment).
+        kf_dt = 1.0 / self.simulation_fps
+        cv_base = np.array([[kf_dt**3 / 3, kf_dt**2 / 2], [kf_dt**2 / 2, kf_dt]])
+
+        def _scaled_Q_block(q_raw, s_p, s_v):
+            D = np.array([[s_p, 0.0], [0.0, s_v]])
+            return D @ (q_raw * cv_base) @ D.T
+
+        q_raw_x = (self.wind_power / self.kf_mass) ** 2
+        q_raw_y = (self.vertical_wind_power / self.kf_mass) ** 2
+        q_raw_angle = (self.turbulence_power / self.kf_inertia) ** 2
+
+        self.kf_Q = np.zeros((6, 6))
+        self.kf_Q[0:2, 0:2] = _scaled_Q_block(q_raw_x, 1.0 / self._kf_norm_x, self._kf_norm_x / self.simulation_fps)
+        self.kf_Q[2:4, 2:4] = _scaled_Q_block(q_raw_y, 1.0 / self._kf_norm_y, self._kf_norm_y / self.simulation_fps)
+        self.kf_Q[4:6, 4:6] = _scaled_Q_block(q_raw_angle, 1.0, 20.0 / self.simulation_fps)
+
         # Apply the initial random impulse to the lander
         self.lander.ApplyForceToCenter(
             (
@@ -460,10 +540,6 @@ class LunarLander_VarFramerate(LunarLander):
             ),
             True,
         )
-
-        if self.enable_wind:  # Initialize wind pattern based on index
-            self.wind_idx = self.np_random.integers(-9999, 9999)
-            self.torque_idx = self.np_random.integers(-9999, 9999)
 
         # Create Lander Legs
         self.legs = []
@@ -517,6 +593,24 @@ class LunarLander_VarFramerate(LunarLander):
         
         # Step the world with 0 action to get the initial observation
         obs, _, _, _, _ = self._physics_step(0)
+
+        # Seed the KF from this first (noiseless) reading, treated as exactly known --
+        # matching how last_sampled_obs is already seeded directly from ground truth.
+        # obs[:6] is in raw obs order [x,y,vx,vy,angle,angular_velocity]; kf_perm
+        # converts to the KF's own [x,vx,y,vy,angle,angular_velocity] order.
+        self.kf_x = np.array(obs[:6], dtype=np.float64)[self.kf_perm]
+        self.kf_P = np.zeros((6, 6))
+        # Kalman gain / normalized innovation squared from the most recent update --
+        # None until the first update happens (exposed purely for introspection/
+        # debugging, e.g. KF/debug_kf.py, KF/eval_kf_quality.py).
+        self.kf_K = None
+        self.kf_nis = None
+        # Raw noisy measurement z from the most recent sampling tick (kf_perm order,
+        # same as kf_x) -- None until the first update happens. Exposed purely for
+        # introspection/debugging (e.g. KF/eval_kf_quality.py's naive-held baseline,
+        # which must hold the actual noisy reading a sensor-limited system would have
+        # gotten, not the noiseless true state).
+        self.kf_last_z = None
 
         # Updates the current observation, last sampled observation, current fps, obs interval, and steps since last observation
         self.current_obs = np.array(obs, dtype=np.float32)
@@ -572,31 +666,23 @@ class LunarLander_VarFramerate(LunarLander):
         if self.enable_wind and not (
             self.legs[0].ground_contact or self.legs[1].ground_contact
         ):
-            # the function used for wind is tanh(sin(2 k x) + sin(pi k x)),
-            # which is proven to never be periodic, k = 0.01
-            wind_mag = (
-                math.tanh(
-                    math.sin(0.02 * self.wind_idx)
-                    + (math.sin(math.pi * 0.01 * self.wind_idx))
-                )
-                * self.wind_power
-            )
-            self.wind_idx += 1
+            # Three independent i.i.d. Gaussian draws each tick -- zero-mean and white
+            # (uncorrelated across ticks) by construction, matching envs/lunar_lander_
+            # gaussian_wind.py. wind_power/vertical_wind_power/turbulence_power are the
+            # std-dev of each per-tick draw, not a max amplitude of a deterministic wave.
+            wind_mag = self.np_random.normal(0.0, self.wind_power)
             self.lander.ApplyForceToCenter(
                 (wind_mag, 0.0),
                 True,
             )
 
-            # the function used for torque is tanh(sin(2 k x) + sin(pi k x)),
-            # which is proven to never be periodic, k = 0.01
-            torque_mag = (
-                math.tanh(
-                    math.sin(0.02 * self.torque_idx)
-                    + (math.sin(math.pi * 0.01 * self.torque_idx))
-                )
-                * self.turbulence_power
+            vertical_wind_mag = self.np_random.normal(0.0, self.vertical_wind_power)
+            self.lander.ApplyForceToCenter(
+                (0.0, vertical_wind_mag),
+                True,
             )
-            self.torque_idx += 1
+
+            torque_mag = self.np_random.normal(0.0, self.turbulence_power)
             self.lander.ApplyTorque(
                 torque_mag,
                 True,
@@ -803,7 +889,52 @@ class LunarLander_VarFramerate(LunarLander):
         
     def get_stale_obs(self):
 
-        return self.last_sampled_obs.copy() 
+        return self.last_sampled_obs.copy()
+
+    def _kf_thrust_delta(self, action, angle_estimate):
+        """Deterministic (dispersion-free) velocity/angular-velocity delta this action's
+        engine impulse would produce, computed from the KF's OWN angle estimate rather
+        than ground truth -- part of the predict step's control term, so thrust is
+        treated as known rather than folded into process noise. Mirrors
+        _physics_step()'s main/side-engine impulse formulas exactly, minus the small
+        random `dispersion` jitter (that residual is left unmodeled). Discrete actions
+        only, matching this env's fixed navigation_action_space = Discrete(4).
+
+        Returns (dvx, dvy, dw) in the same state-scaled units as state[2], state[3],
+        state[5].
+        """
+        action = int(action)
+        tip = (math.sin(angle_estimate), math.cos(angle_estimate))
+        side = (-tip[1], tip[0])
+
+        lever = (0.0, 0.0)
+        impulse = (0.0, 0.0)
+
+        if action == 2:
+            # Main engine
+            ox0 = tip[0] * (MAIN_ENGINE_Y_LOCATION / SCALE)
+            oy0 = -tip[1] * (MAIN_ENGINE_Y_LOCATION / SCALE)
+            lever = (ox0, oy0)
+            impulse = (-ox0 * MAIN_ENGINE_POWER, -oy0 * MAIN_ENGINE_POWER)
+        elif action in (1, 3):
+            # Side engines: action=1 -> left (direction=-1), action=3 -> right (direction=+1)
+            direction = action - 2
+            ox0 = side[0] * (direction * SIDE_ENGINE_AWAY / SCALE)
+            oy0 = -side[1] * (direction * SIDE_ENGINE_AWAY / SCALE)
+            lever = (ox0 - tip[0] * 17 / SCALE, oy0 + tip[1] * SIDE_ENGINE_HEIGHT / SCALE)
+            impulse = (-ox0 * SIDE_ENGINE_POWER, -oy0 * SIDE_ENGINE_POWER)
+        # action == 0: no thrust, lever/impulse stay (0,0)
+
+        dv_raw_x = impulse[0] / self.kf_mass
+        dv_raw_y = impulse[1] / self.kf_mass
+        # 2D cross product r x F -- angular impulse from the off-center lever arm.
+        torque_impulse = lever[0] * impulse[1] - lever[1] * impulse[0]
+        dw_raw = torque_impulse / self.kf_inertia
+
+        dvx = dv_raw_x * (VIEWPORT_W / SCALE / 2) / self.simulation_fps
+        dvy = dv_raw_y * (VIEWPORT_H / SCALE / 2) / self.simulation_fps
+        dw = dw_raw * 20.0 / self.simulation_fps
+        return dvx, dvy, dw
 
     def step(self, action):
         assert self.navigation_model is not None, \
@@ -826,11 +957,44 @@ class LunarLander_VarFramerate(LunarLander):
         # 3. Update the current observation with the new observation obtained from the physics step
         self.current_obs = obs.copy()
 
+        # --- Kalman filter predict (every tick, regardless of sampling) ---
+        # Thrust direction uses the KF's OWN current angle estimate (index 4 -- the
+        # same position in both orderings, unaffected by kf_perm), not ground truth,
+        # computed from the action that was just physically applied.
+        dvx, dvy, dw = self._kf_thrust_delta(navigation_action, self.kf_x[4])
+        kf_b = np.array([0.0, dvx, 0.0, dvy + self.kf_gravity_dvy, 0.0, dw])
+        self.kf_x = self.kf_F @ self.kf_x + kf_b
+        self.kf_P = self.kf_F @ self.kf_P @ self.kf_F.T + self.kf_Q
+        # Kalman gain / normalized innovation squared from the most recent update --
+        # None on ticks where no update happened (predict-only/stale), exposed purely
+        # for introspection/debugging (e.g. KF/debug_kf.py, KF/eval_kf_quality.py).
+        self.kf_K = None
+        self.kf_nis = None
+        self.kf_last_z = None
+
         # 4. Check if it's time to sample a new observation based on the obs_interval
         # If so, update the last sampled observation, reset the steps since last observation count, and increment the episode frame count
         if self.steps_since_last_obs >= self.obs_interval:
-            # self.current_obs is updated every physics step, so here we store the fresh observation of this step
-            self.last_sampled_obs = self.current_obs.copy()
+            # Sampling tick: take a noisy sensor reading of the TRUE 6-dim continuous
+            # state and fuse it with the KF's prediction via the standard KF update
+            # step. The fused estimate becomes this tick's 6 continuous observation
+            # values; the 2 leg-contact booleans are NOT run through the KF -- they're
+            # the true current reading here, and get held (same mechanism as before,
+            # unchanged) on stale ticks.
+            z = (self.current_obs[:6] + self.np_random.normal(0.0, self.sensor_noise_std, size=6))[self.kf_perm]
+            self.kf_last_z = z.copy()
+            innovation = z - self.kf_x
+            S = self.kf_P + self.kf_R
+            S_inv = np.linalg.inv(S)
+            K = self.kf_P @ S_inv
+            self.kf_x = self.kf_x + K @ innovation
+            self.kf_P = (np.eye(6) - K) @ self.kf_P
+            self.kf_K = K
+            # Normalized innovation squared -- a consistency check independent of NEES
+            # (uses the pre-update predicted P via S, not the post-update fused P).
+            # Expected value under a correctly-calibrated filter: state dim (6).
+            self.kf_nis = float(innovation.T @ S_inv @ innovation)
+
             self.steps_since_last_obs = 0
             self.episode_frame_count += 1
             frame_consumed = True
@@ -839,19 +1003,28 @@ class LunarLander_VarFramerate(LunarLander):
             # the action is chosen at a sampling instant and affects future sampling
             self.current_fps = self.fps_choices[int(action)]
             self.obs_interval = int(self.simulation_fps / self.current_fps)
-            
+
             # Debbuging mask, which indicates which values in the observation are valid (1 for valid, 0 for invalid)
             obs_mask = np.ones_like(self.last_sampled_obs, dtype=np.float32)
 
-            # Copy the last sampled observation to a new variable, 
-            # which will be used for augmentation and storing in the buffer
-            obs_values = self.last_sampled_obs.copy()
+            # KF-fused estimate (6 continuous dims, converted back to raw obs order) +
+            # true current leg-contact booleans.
+            obs_values = np.concatenate([
+                self.kf_x[self.kf_perm].astype(np.float32),
+                self.current_obs[6:8],
+            ])
+            # last_sampled_obs still gets set from this -- it's what holds the booleans
+            # (and, harmlessly, a KF snapshot) across subsequent stale ticks.
+            self.last_sampled_obs = obs_values.copy()
 
         else:
-            # If it's not time to sample a new observation, we use the last sampled
-            # observation (self.last_sampled_obs is not updated)
-            # get_stale_obs() generates a padded observation.
-            obs_values = self.get_stale_obs()
+            # Stale tick: no new measurement -- use the KF's predicted estimate (not a
+            # repeated/held copy) for the 6 continuous dims; booleans still held from
+            # the last real sample (the KF doesn't touch them).
+            obs_values = np.concatenate([
+                self.kf_x[self.kf_perm].astype(np.float32),
+                self.last_sampled_obs[6:8],
+            ])
 
             # Debbuging mask, which indicates which values in the observation are valid (1 for valid, 0 for invalid)
             obs_mask = np.zeros_like(self.last_sampled_obs, dtype=np.float32)
@@ -1017,7 +1190,7 @@ class LunarLander_VarFramerate(LunarLander):
             self.isopen = False
 
 register(
-    id="LunarLander_VarFramerate",
-    entry_point="envs.lunar_lander_var_fps:LunarLander_VarFramerate",
+    id="LunarLander_VarFramerate_KF",
+    entry_point="envs.lunar_lander_var_fps_kf:LunarLander_VarFramerate_KF",
     #max_episode_steps=500
 )

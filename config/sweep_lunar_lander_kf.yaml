@@ -1,0 +1,46 @@
+# Sweep config for experiments/lunar_lander_var_fps_kf/train.py (LunarLander_VarFramerate_KF).
+# experiments/lunar_lander_var_fps_kf/sweep.py takes the Cartesian product of the
+# `sweep:` section (a single dimension here: budget) and launches one train.py
+# subprocess per combination, each pinned to its own CPU core(s) via taskset.
+#
+# Same schema as config/sweep.yaml plus the wind/Kalman-filter params: enable_wind,
+# wind_power, turbulence_power, vertical_wind_power, sensor_noise_std.
+seed: 1
+total_timesteps: 20000000
+learning_rate: 0.0003
+num_envs: 32
+num_steps: 1024
+gamma: 0.99
+gae_lambda: 0.98
+num_minibatches: 16
+update_epochs: 4
+norm_adv: true
+clip_coef: 0.2
+clip_vloss: true
+ent_coef: 0.05
+vf_coef: 0.5
+max_grad_norm: 0.5
+anneal_lr: false
+frame_cost: 2.0
+max_episode_steps: 500
+# Relative to the repo root (sweep.py launches train.py subprocesses with cwd=REPO_ROOT
+# -- see LAUNCH_CWD in sweep.py). Wind-trained nav model, matching this env's wind-on
+# default (see KF/debug_kf.py / KF/eval_kf_quality.py, which use the same checkpoint).
+nav_model_path: "runs/LunarLander_GaussianWind__train__windTrue_20.0_2.0_vert20.0__1__1785251869/model.pt"
+async_envs: true
+
+# Wind + Kalman-filter env parameters (see envs/lunar_lander_var_fps_kf.py)
+enable_wind: true
+wind_power: 20
+vertical_wind_power: 20
+turbulence_power: 2.0
+# std-dev of the Gaussian measurement noise added to all 6 filtered state dims on
+# sampling ticks. State dims range roughly x,y in [-2.5, 2.5], vx,vy,angular_velocity
+# in [-10, 10], angle in [-2*pi, 2*pi] -- 0.05 is a small fraction of any of those,
+# a reasonable starting point to retune once real KF behavior is observed.
+sensor_noise_std: 0.05
+
+# Sweep combinations -- experiments/lunar_lander_var_fps_kf/sweep.py builds the
+# Cartesian product across these lists (currently a single dimension: budget).
+sweep:
+  budget: [25, 30, 50, 75, 100]
