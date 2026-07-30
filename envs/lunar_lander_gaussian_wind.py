@@ -225,6 +225,7 @@ class LunarLander_GaussianWind(gym.Env, EzPickle):
         wind_power: float = 15.0,
         turbulence_power: float = 1.5,
         vertical_wind_power: float = 0.0,
+        sensor_noise_std: float = 0.0,
     ):
         EzPickle.__init__(
             self,
@@ -235,6 +236,7 @@ class LunarLander_GaussianWind(gym.Env, EzPickle):
             wind_power,
             turbulence_power,
             vertical_wind_power,
+            sensor_noise_std,
         )
 
         assert (
@@ -259,6 +261,15 @@ class LunarLander_GaussianWind(gym.Env, EzPickle):
         # same way wind_power perturbs (x, vx): a direct force, integrated by Box2D, so
         # it affects vy immediately and y through the resulting velocity change.
         self.vertical_wind_power = vertical_wind_power
+
+        # std-dev of i.i.d. Gaussian measurement noise added to the 6 continuous
+        # observation dims (x, y, vx, vy, angle, angular_velocity) right before they're
+        # returned -- this is measurement/sensor noise, distinct from the wind/
+        # turbulence forces above (which are process noise: they perturb the true
+        # dynamics). Reward and termination are computed from the true, noiseless
+        # state in step() before this is applied -- only the returned observation is
+        # affected. Default 0.0 (off, existing behavior unchanged).
+        self.sensor_noise_std = sensor_noise_std
 
         self.enable_wind = enable_wind
 
@@ -667,8 +678,18 @@ class LunarLander_GaussianWind(gym.Env, EzPickle):
 
         if self.render_mode == "human":
             self.render()
+
+        # Measurement noise: applied only to the returned observation, after reward/
+        # termination have already been computed from the true `state` above -- the
+        # leg-contact booleans (state[6:8]) are left untouched, matching the KF env's
+        # convention that only the 6 continuous dims are noisy/filtered.
+        obs = np.array(state, dtype=np.float32)
+        if self.sensor_noise_std > 0.0:
+            obs = obs.copy()
+            obs[:6] += self.np_random.normal(0.0, self.sensor_noise_std, size=6).astype(np.float32)
+
         # truncation=False as the time limit is handled by the `TimeLimit` wrapper added during `make`
-        return np.array(state, dtype=np.float32), reward, terminated, False, {}
+        return obs, reward, terminated, False, {}
 
     def render(self):
         if self.render_mode is None:

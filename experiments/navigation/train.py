@@ -95,16 +95,21 @@ class Args:
     """std-dev of a separate, independent per-tick Gaussian force applied straight
     up/down when enable_wind is on -- perturbs (y, vy) the way wind_power perturbs
     (x, vx). Default 0.0 (off)"""
+    sensor_noise_std: float = 0.05
+    """std-dev of i.i.d. Gaussian measurement noise added to the 6 continuous
+    observation dims (not the leg-contact booleans) -- distinct from the wind/
+    turbulence forces above, which perturb the true dynamics rather than what's
+    observed. Default 0.0 (off, matches historical behavior)"""
     max_episode_steps: int = 500
     """outer TimeLimit -- LunarLander_GaussianWind has no max_episode_steps at
     registration (unlike stock LunarLander-v3), so without this an episode that never
     crashes or lands (increasingly likely at high wind_power) runs forever"""
 
 
-def make_env(env_id, idx, capture_video, run_name, enable_wind, wind_power, turbulence_power, vertical_wind_power, max_episode_steps):
+def make_env(env_id, idx, capture_video, run_name, enable_wind, wind_power, turbulence_power, vertical_wind_power, sensor_noise_std, max_episode_steps):
     def thunk():
         env_kwargs = dict(enable_wind=enable_wind, wind_power=wind_power, turbulence_power=turbulence_power,
-                           vertical_wind_power=vertical_wind_power)
+                           vertical_wind_power=vertical_wind_power, sensor_noise_std=sensor_noise_std)
         if capture_video and idx == 0:
             env = gym.make(env_id, render_mode="rgb_array", **env_kwargs)
             env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
@@ -157,7 +162,7 @@ if __name__ == "__main__":
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
-    run_name = f"{args.env_id}__{args.exp_name}__wind{args.enable_wind}_{args.wind_power}_{args.turbulence_power}_vert{args.vertical_wind_power}__{args.seed}__{int(time.time())}"
+    run_name = f"{args.env_id}__{args.exp_name}__wind{args.enable_wind}_{args.wind_power}_{args.turbulence_power}_vert{args.vertical_wind_power}_sns{args.sensor_noise_std}__{args.seed}__{int(time.time())}"
     if args.track:
         import wandb
 
@@ -186,7 +191,7 @@ if __name__ == "__main__":
 
     # env setup
     envs = gym.vector.SyncVectorEnv(
-        [make_env(args.env_id, i, args.capture_video, run_name, args.enable_wind, args.wind_power, args.turbulence_power, args.vertical_wind_power, args.max_episode_steps)
+        [make_env(args.env_id, i, args.capture_video, run_name, args.enable_wind, args.wind_power, args.turbulence_power, args.vertical_wind_power, args.sensor_noise_std, args.max_episode_steps)
          for i in range(args.num_envs)],
     )
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
@@ -251,6 +256,7 @@ if __name__ == "__main__":
             writer.add_scalar("charts/wind_power", args.wind_power, global_step)
             writer.add_scalar("charts/turbulence_power", args.turbulence_power, global_step)
             writer.add_scalar("charts/vertical_wind_power", args.vertical_wind_power, global_step)
+            writer.add_scalar("charts/sensor_noise_std", args.sensor_noise_std, global_step)
             writer.add_scalar("charts/max_episode_steps", args.max_episode_steps, global_step)
 
         # bootstrap value if not done

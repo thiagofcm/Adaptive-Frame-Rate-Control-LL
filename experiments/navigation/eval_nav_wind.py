@@ -67,10 +67,10 @@ class AgentEval(nn.Module):
 # =========================
 # Evaluate one model for one run
 # =========================
-def evaluate_model_single_run(model, enable_wind, wind_power, turbulence_power, vertical_wind_power, vy_thr, max_episode_steps):
+def evaluate_model_single_run(model, enable_wind, wind_power, turbulence_power, vertical_wind_power, sensor_noise_std, vy_thr, max_episode_steps):
     env = gym.make("LunarLander_GaussianWind", enable_wind=enable_wind,
                     wind_power=wind_power, turbulence_power=turbulence_power,
-                    vertical_wind_power=vertical_wind_power)
+                    vertical_wind_power=vertical_wind_power, sensor_noise_std=sensor_noise_std)
     # LunarLander_GaussianWind has no max_episode_steps at registration -- without this,
     # an episode that never crashes or lands under wind (quite possible for a nav model
     # that was never trained to handle wind) runs forever.
@@ -159,6 +159,7 @@ if __name__ == "__main__":
     parser.add_argument("--wind-power",       type=float, default=20.0, help="std-dev of the per-tick Gaussian force")
     parser.add_argument("--turbulence-power", type=float, default=2.0,  help="std-dev of the per-tick Gaussian torque")
     parser.add_argument("--vertical-wind-power", type=float, default=20.0, help="std-dev of the per-tick Gaussian vertical (y/vy) force")
+    parser.add_argument("--sensor-noise-std", type=float, default=0.0, help="std-dev of Gaussian measurement noise added to the 6 continuous obs dims (0.0 = off)")
     parser.add_argument("--vy_thr", type=float, default=0.5, required=False, help="touchdown vy threshold for success (m/s)")
     parser.add_argument("--max_episode_steps", type=int, default=500, required=False)
     args = parser.parse_args()
@@ -182,7 +183,7 @@ if __name__ == "__main__":
 
     print(f"\nStarting evaluation: {N_RUNS} runs x {N_EPISODES} episodes each")
     print(f"Seeds: {RUN_SEED} → {RUN_SEED + N_EPISODES - 1}")
-    print(f"Wind: enable={args.enable_wind} wind_power={args.wind_power} turbulence_power={args.turbulence_power} vertical_wind_power={args.vertical_wind_power}")
+    print(f"Wind: enable={args.enable_wind} wind_power={args.wind_power} turbulence_power={args.turbulence_power} vertical_wind_power={args.vertical_wind_power} sensor_noise_std={args.sensor_noise_std}")
 
     # ── Run N_RUNS times, each with a non-overlapping seed block ──────────────
     run_metrics = {
@@ -194,7 +195,7 @@ if __name__ == "__main__":
 
     for run in range(N_RUNS):
         print(f"\nRun {run+1}/{N_RUNS}")
-        results = evaluate_model_single_run(agent, args.enable_wind, args.wind_power, args.turbulence_power, args.vertical_wind_power, args.vy_thr, args.max_episode_steps)
+        results = evaluate_model_single_run(agent, args.enable_wind, args.wind_power, args.turbulence_power, args.vertical_wind_power, args.sensor_noise_std, args.vy_thr, args.max_episode_steps)
         run_metrics["rewards"].append(results["rewards"])
         run_metrics["steps"].append(results["steps"])
         run_metrics["vy"].append(results["vy"])
@@ -212,19 +213,19 @@ if __name__ == "__main__":
     # ── Save CSV ───────────────────────────────────────────────────────────────
     csv_path = os.path.join(
         output_dir,
-        f"eval_results_wind_hor{args.wind_power}_vert_{args.vertical_wind_power}_turb_{args.turbulence_power}_vy_thr_{args.vy_thr}.csv",
+        f"eval_results_wind_hor{args.wind_power}_vert_{args.vertical_wind_power}_turb_{args.turbulence_power}_sns{args.sensor_noise_std}_vy_thr_{args.vy_thr}.csv",
     )
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow([
-            "model", "enable_wind", "wind_power", "turbulence_power", "vertical_wind_power", "n_runs", "n_episodes",
+            "model", "enable_wind", "wind_power", "turbulence_power", "vertical_wind_power", "sensor_noise_std", "n_runs", "n_episodes",
             "reward_mean",  "reward_std",
             "steps_mean",   "steps_std",
             "vy_mean",      "vy_std",
             "success_pct_mean", "success_pct_std",
         ])
         writer.writerow([
-            str(model_path), args.enable_wind, args.wind_power, args.turbulence_power, args.vertical_wind_power, N_RUNS, N_EPISODES,
+            str(model_path), args.enable_wind, args.wind_power, args.turbulence_power, args.vertical_wind_power, args.sensor_noise_std, N_RUNS, N_EPISODES,
             f"{rew_m:.4f}",  f"{rew_std:.4f}",
             f"{stp_m:.2f}",  f"{stp_std:.2f}",
             f"{vy_m:.4f}",   f"{vy_std:.4f}",
@@ -236,7 +237,7 @@ if __name__ == "__main__":
     # ── Console summary ────────────────────────────────────────────────────────
     print("\n===== Evaluation Summary =====")
     print(f"Model        : {model_path}")
-    print(f"Wind         : enable={args.enable_wind} wind_power={args.wind_power} turbulence_power={args.turbulence_power} vertical_wind_power={args.vertical_wind_power}")
+    print(f"Wind         : enable={args.enable_wind} wind_power={args.wind_power} turbulence_power={args.turbulence_power} vertical_wind_power={args.vertical_wind_power} sensor_noise_std={args.sensor_noise_std}")
     print(f"Runs x Eps   : {N_RUNS} x {N_EPISODES} = {N_RUNS*N_EPISODES} total episodes")
     print(f"Reward       : {rew_m:.4f} ± {rew_std:.4f}")
     print(f"Steps        : {stp_m:.2f} ± {stp_std:.2f}")

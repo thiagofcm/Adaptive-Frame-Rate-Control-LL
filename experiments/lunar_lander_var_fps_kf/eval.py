@@ -188,6 +188,7 @@ def evaluate_model_single_run(model, nav_model, frame_cost, budget, fixed, wind_
 
             if fixed != 0:
                 action = FPS_TO_ACTION[fixed]
+                #print(f"Using fixed action: {action}")
             else:
                 action, lstm_state = model.predict(obs, lstm_state, done, deterministic=True)
 
@@ -208,7 +209,7 @@ def evaluate_model_single_run(model, nav_model, frame_cost, budget, fixed, wind_
                 touchdown_vy    = abs(true_obs[3])
                 touchdown_flag  = True
                 landed_in_flags = (-0.2 < true_obs[0] < 0.2)
-                exceed_vy_vel   = touchdown_vy > 0.3
+                exceed_vy_vel   = touchdown_vy > 0.5
 
             # While grounded, check if drifts outside flags
             if touchdown_flag and leg_contact:
@@ -257,9 +258,9 @@ if __name__ == "__main__":
     parser.add_argument("--fixed", type=float, default=0.0, required=False)
     parser.add_argument("--enable-wind", dest="enable_wind", action="store_true", default=True)
     parser.add_argument("--no-enable-wind", dest="enable_wind", action="store_false")
-    parser.add_argument("--wind-power", type=float, default=80.0)
-    parser.add_argument("--turbulence-power", type=float, default=4.0)
-    parser.add_argument("--vertical-wind-power", type=float, default=60.0)
+    parser.add_argument("--wind-power", type=float, default=20.0)
+    parser.add_argument("--turbulence-power", type=float, default=2.0)
+    parser.add_argument("--vertical-wind-power", type=float, default=20.0)
     parser.add_argument("--sensor-noise-std", type=float, default=0.05)
     parser.add_argument("--nav-model-path", type=str, default=NAV_MODEL_PATH)
     args = parser.parse_args()

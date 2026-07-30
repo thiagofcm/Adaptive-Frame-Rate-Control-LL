@@ -54,10 +54,10 @@ class Agent(nn.Module):
         return torch.argmax(logits, dim=-1)
 
 
-def add_title(frame, seed, wind_power, turbulence_power, vertical_wind_power):
+def add_title(frame, seed, wind_power, turbulence_power, vertical_wind_power, sensor_noise_std):
     img = Image.fromarray(frame)
     draw = ImageDraw.Draw(img)
-    title = f"seed={seed}  wind_power={wind_power}  turbulence_power={turbulence_power}  vertical_wind_power={vertical_wind_power}"
+    title = f"seed={seed}  wind_power={wind_power}  turbulence_power={turbulence_power}  vertical_wind_power={vertical_wind_power}  sensor_noise_std={sensor_noise_std}"
     draw.text((10, 10), title, fill=(255, 255, 255))
     return img
 
@@ -77,6 +77,7 @@ def main():
     parser.add_argument("--wind-power",        type=float, default=40.0, help="std-dev of the per-tick Gaussian force")
     parser.add_argument("--turbulence-power",  type=float, default=3.0,  help="std-dev of the per-tick Gaussian torque")
     parser.add_argument("--vertical-wind-power", type=float, default=30.0, help="std-dev of the per-tick Gaussian vertical (y/vy) force")
+    parser.add_argument("--sensor-noise-std", type=float, default=0.0, help="std-dev of Gaussian measurement noise added to the 6 continuous obs dims (0.0 = off)")
     parser.add_argument("--seed",        type=int, default=None,   help="env reset seed (omit for a random episode)")
     args = parser.parse_args()
 
@@ -86,7 +87,8 @@ def main():
     env = gym.make("LunarLander_GaussianWind", render_mode="rgb_array",
                     enable_wind=args.enable_wind, wind_power=args.wind_power,
                     turbulence_power=args.turbulence_power,
-                    vertical_wind_power=args.vertical_wind_power)
+                    vertical_wind_power=args.vertical_wind_power,
+                    sensor_noise_std=args.sensor_noise_std)
     obs_dim   = env.observation_space.shape[0]   # 8
     n_actions = env.action_space.n               # 4
 
@@ -113,7 +115,7 @@ def main():
     # extension --output_path already specifies) so GIFs from different runs don't
     # collide and are identifiable without opening them.
     base, ext = os.path.splitext(args.output_path)
-    output_path = f"{base}_seed{seed}_wind{args.wind_power}_turb{args.turbulence_power}_vert{args.vertical_wind_power}{ext}"
+    output_path = f"{base}_seed{seed}_wind{args.wind_power}_turb{args.turbulence_power}_vert{args.vertical_wind_power}_sns{args.sensor_noise_std}{ext}"
 
     obs, _ = env.reset(seed=seed)
     frames = []
@@ -127,7 +129,7 @@ def main():
     while not (terminated or truncated) and step < args.max_steps:
         # render frame
         frame = env.render()
-        frames.append(add_title(frame, seed, args.wind_power, args.turbulence_power, args.vertical_wind_power))
+        frames.append(add_title(frame, seed, args.wind_power, args.turbulence_power, args.vertical_wind_power, args.sensor_noise_std))
 
         # get action — deterministic
         obs_tensor = torch.Tensor(obs).unsqueeze(0).to(device)
@@ -142,7 +144,7 @@ def main():
 
     # capture final frame
     frame = env.render()
-    frames.append(add_title(frame, seed, args.wind_power, args.turbulence_power, args.vertical_wind_power))
+    frames.append(add_title(frame, seed, args.wind_power, args.turbulence_power, args.vertical_wind_power, args.sensor_noise_std))
     env.close()
     print(f"Seed used: {seed}")
 

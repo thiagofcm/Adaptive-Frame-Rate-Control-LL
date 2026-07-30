@@ -843,7 +843,7 @@ class LunarLander_VarFramerate_KF(LunarLander):
         if touchdown_check:
             self.touchdown_flag = True
             self.landing_phase = False
-            if vy > 0.4: # Set to 0.4 only for testing. 0.2 is the value we were using before.
+            if vy > 0.2: # Set to 0.4 only for testing. 0.2 is the value we were using before.
                 reward = -100
         # If the spacecraft just landed, set touchdown_flag == True, so touchdown_check will be false and next step
         # and this verification only happens once.
