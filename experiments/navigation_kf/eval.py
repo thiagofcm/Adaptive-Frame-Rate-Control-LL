@@ -90,7 +90,7 @@ def get_true_state8(u):
     ])
 
 
-def evaluate_model_single_run(model, enable_wind, wind_power, turbulence_power, vertical_wind_power, sensor_noise_std, vy_thr, max_episode_steps):
+def evaluate_seeds(model, enable_wind, wind_power, turbulence_power, vertical_wind_power, sensor_noise_std, vy_thr, max_episode_steps):
     env = gym.make("LunarLander_GaussianWind_KF", enable_wind=enable_wind,
                     wind_power=wind_power, turbulence_power=turbulence_power,
                     vertical_wind_power=vertical_wind_power, sensor_noise_std=sensor_noise_std)
@@ -158,7 +158,7 @@ def evaluate_model_single_run(model, enable_wind, wind_power, turbulence_power, 
 
         episode_rewards.append(total_reward)
         episode_steps.append(step_count)
-        episode_vy.append(touchdown_vy if touchdown_vy is not None else np.nan)
+        episode_vy.append(touchdown_vy if touchdown_vy is not None and successful else np.nan)
         episode_success.append(float(successful))
 
         print(f"  Episode {seed - RUN_SEED + 1}/{N_EPISODES} | reward={total_reward:.2f} | success={successful} | steps={step_count}")
@@ -190,8 +190,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     model_path     = Path(args.model)
-    parent_folder  = model_path.parent
-    results_folder = "score_results"
+    parent_folder  = model_path.parent.name
+    results_folder = "score_results/navigation_kf"
     output_dir     = os.path.join(results_folder, parent_folder)
     os.makedirs(output_dir, exist_ok=True)
 
@@ -220,7 +220,7 @@ if __name__ == "__main__":
 
     for run in range(N_RUNS):
         print(f"\nRun {run+1}/{N_RUNS}")
-        results = evaluate_model_single_run(agent, args.enable_wind, args.wind_power, args.turbulence_power, args.vertical_wind_power, args.sensor_noise_std, args.vy_thr, args.max_episode_steps)
+        results = evaluate_seeds(agent, args.enable_wind, args.wind_power, args.turbulence_power, args.vertical_wind_power, args.sensor_noise_std, args.vy_thr, args.max_episode_steps)
         run_metrics["rewards"].append(results["rewards"])
         run_metrics["steps"].append(results["steps"])
         run_metrics["vy"].append(results["vy"])
@@ -242,7 +242,7 @@ if __name__ == "__main__":
     # np.nanmean/nanstd: touchdown_vy is nan for episodes that never touch down (crashed
     # out of bounds / timed out airborne) -- must be excluded, not averaged in as 0.
     vy_m,   vy_std   = np.nanmean(run_metrics["vy"]), np.nanstd(run_metrics["vy"])
-    succ_m, succ_std = run_metrics["success"].mean() * 100, run_metrics["success"].std() * 100
+    succ_m = run_metrics["success"].mean() * 100
 
     # ── Save CSV ───────────────────────────────────────────────────────────────
     csv_path = os.path.join(
@@ -256,14 +256,14 @@ if __name__ == "__main__":
             "reward_mean",  "reward_std",
             "steps_mean",   "steps_std",
             "vy_mean",      "vy_std",
-            "success_pct_mean", "success_pct_std",
+            "success_pct_mean",
         ])
         writer.writerow([
             str(model_path), args.enable_wind, args.wind_power, args.turbulence_power, args.vertical_wind_power, args.sensor_noise_std, N_RUNS, N_EPISODES,
             f"{rew_m:.4f}",  f"{rew_std:.4f}",
             f"{stp_m:.2f}",  f"{stp_std:.2f}",
             f"{vy_m:.4f}",   f"{vy_std:.4f}",
-            f"{succ_m:.2f}", f"{succ_std:.2f}",
+            f"{succ_m:.2f}"
         ])
 
     print(f"\nResults saved → {csv_path}")
@@ -276,4 +276,4 @@ if __name__ == "__main__":
     print(f"Reward       : {rew_m:.4f} ± {rew_std:.4f}")
     print(f"Steps        : {stp_m:.2f} ± {stp_std:.2f}")
     print(f"Touchdown vy : {vy_m:.4f} ± {vy_std:.4f}")
-    print(f"Success      : {succ_m:.2f}% ± {succ_std:.2f}%")
+    print(f"Success      : {succ_m:.2f}%")

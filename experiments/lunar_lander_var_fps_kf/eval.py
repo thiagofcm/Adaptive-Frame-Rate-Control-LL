@@ -38,7 +38,7 @@ N_EPISODES      = 1000
 N_RUNS          = 1
 RUN_SEED        = 42
 MAX_EVAL_WORKERS = 16
-NAV_MODEL_PATH = "runs/LunarLander_GaussianWind__train__windTrue_20.0_2.0_vert20.0_sns0.05__1__1785419028/model.pt"
+NAV_MODEL_PATH = "runs/navigation_kf/LunarLander_GaussianWind_KF__train__windTrue_20.0_2.0_vert20.0_sns0.05__1__1785455192/model.pt"
 
 
 # ══════════════════════════════════════════════════════
@@ -230,7 +230,7 @@ def evaluate_model_single_run(model, nav_model, frame_cost, budget, fixed, wind_
         episode_rewards.append(total_reward)
         episode_nav_rewards.append(total_nav_reward)
         episode_frames.append(frame_count)
-        episode_vy.append(touchdown_vy if touchdown_vy is not None else np.nan)
+        episode_vy.append(touchdown_vy if touchdown_vy is not None and successful else np.nan)
         episode_success.append(float(successful))
         episode_fps_traces.append(fps_trace)
 
@@ -268,7 +268,7 @@ if __name__ == "__main__":
     model_path     = Path(args.model)
     frame_cost     = args.fc
     budget         = args.budget  # Budget of frames before landing
-    parent_folder  = model_path.parent
+    parent_folder  = model_path.parent.name
     results_folder = "score_results"
     output_dir     = os.path.join(results_folder, parent_folder)
     fixed          = args.fixed
@@ -330,12 +330,12 @@ if __name__ == "__main__":
     frm_m,  frm_std  = run_metrics["frames"].mean(),               run_metrics["frames"].std()
     # np.nanmean/nanstd: touchdown_vy is nan for episodes that never touch down.
     vy_m,   vy_std   = np.nanmean(run_metrics["vy"]),            np.nanstd(run_metrics["vy"])
-    succ_m, succ_std = run_metrics["success"].mean() * 100,        run_metrics["success"].std() * 100
+    succ_m = run_metrics["success"].mean() * 100
 
     # ── Save CSV ───────────────────────────────────────────────────────────────
     if fixed > 0:
         output_dir = "score_results/runs"
-        csv_path = os.path.join(output_dir, f"eval_results_fixed_{fixed}.csv")
+        csv_path = os.path.join(output_dir, "var_fps_kf", f"eval_results_fixed_{fixed}.csv")
     else:
         csv_path = os.path.join(output_dir, "eval_results.csv")
     os.makedirs(output_dir, exist_ok=True)
@@ -349,7 +349,7 @@ if __name__ == "__main__":
             "nav_reward_mean", "nav_reward_std",
             "frames_mean",     "frames_std",
             "vy_mean",         "vy_std",
-            "success_pct_mean","success_pct_std",
+            "success_pct_mean",
         ])
         # One summary row
         writer.writerow([
@@ -359,7 +359,7 @@ if __name__ == "__main__":
             f"{nav_m:.4f}",  f"{nav_std:.4f}",
             f"{frm_m:.2f}",  f"{frm_std:.2f}",
             f"{vy_m:.4f}",   f"{vy_std:.4f}",
-            f"{succ_m:.2f}", f"{succ_std:.2f}",
+            f"{succ_m:.2f}",
         ])
 
     print(f"\nResults saved → {csv_path}")
@@ -372,4 +372,4 @@ if __name__ == "__main__":
     print(f"Nav Reward   : {nav_m:.4f} ± {nav_std:.4f}")
     print(f"Frames       : {frm_m:.2f} ± {frm_std:.2f}")
     print(f"Touchdown vy : {vy_m:.4f} ± {vy_std:.4f}")
-    print(f"Success      : {succ_m:.2f}% ± {succ_std:.2f}%")
+    print(f"Success      : {succ_m:.2f}%")

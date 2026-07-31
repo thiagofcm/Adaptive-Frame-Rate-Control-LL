@@ -92,7 +92,7 @@ class Args:
     frame_cost: float = 2.0
     budget: float = 100.0
     max_episode_steps: int = 500
-    nav_model_path: str = "runs/LunarLander_GaussianWind__train__windTrue_20.0_2.0_vert20.0__1__1785251869/model.pt"
+    nav_model_path: str = "runs/navigation_kf/LunarLander_GaussianWind_KF__train__windTrue_20.0_2.0_vert20.0_sns0.05__1__1785455192/model.pt"
     """path to the frozen navigation model checkpoint"""
     resume_path: str = None
     """path to a checkpoint .pt file to resume training from"""

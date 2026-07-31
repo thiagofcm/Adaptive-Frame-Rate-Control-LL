@@ -239,7 +239,7 @@ def evaluate_model_single_run(model, nav_model, frame_cost, budget, fixed):
         episode_rewards.append(total_reward)
         episode_nav_rewards.append(total_nav_reward)
         episode_frames.append(frame_count)
-        episode_vy.append(touchdown_vy if touchdown_vy is not None else np.nan)
+        episode_vy.append(touchdown_vy if touchdown_vy is not None and successful else np.nan)
         episode_success.append(float(successful))
         episode_fps_traces.append(fps_trace)
 
@@ -325,8 +325,8 @@ if __name__ == "__main__":
     frm_m,  frm_std  = run_metrics["frames"].mean(),               run_metrics["frames"].std()
     # np.nanmean/nanstd: touchdown_vy is nan for episodes that never touch down.
     vy_m,   vy_std   = np.nanmean(run_metrics["vy"]),            np.nanstd(run_metrics["vy"])
-    succ_m, succ_std = run_metrics["success"].mean() * 100,        run_metrics["success"].std() * 100
-                
+    succ_m = run_metrics["success"].mean() * 100
+
     # ── Save CSV ───────────────────────────────────────────────────────────────
     if fixed > 0:
         output_dir = "score_results/runs"
@@ -342,7 +342,7 @@ if __name__ == "__main__":
             "nav_reward_mean", "nav_reward_std",
             "frames_mean",     "frames_std",
             "vy_mean",         "vy_std",
-            "success_pct_mean","success_pct_std",
+            "success_pct_mean",
         ])
         # One summary row
         writer.writerow([
@@ -351,7 +351,7 @@ if __name__ == "__main__":
             f"{nav_m:.4f}",  f"{nav_std:.4f}",
             f"{frm_m:.2f}",  f"{frm_std:.2f}",
             f"{vy_m:.4f}",   f"{vy_std:.4f}",
-            f"{succ_m:.2f}", f"{succ_std:.2f}",
+            f"{succ_m:.2f}",
         ])
         # Per-run detail rows
         # writer.writerow([])
@@ -377,4 +377,4 @@ if __name__ == "__main__":
     print(f"Nav Reward   : {nav_m:.4f} ± {nav_std:.4f}")
     print(f"Frames       : {frm_m:.2f} ± {frm_std:.2f}")
     print(f"Touchdown vy : {vy_m:.4f} ± {vy_std:.4f}")
-    print(f"Success      : {succ_m:.2f}% ± {succ_std:.2f}%")
+    print(f"Success      : {succ_m:.2f}%")
