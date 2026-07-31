@@ -268,9 +268,8 @@ if __name__ == "__main__":
     model_path     = Path(args.model)
     frame_cost     = args.fc
     budget         = args.budget  # Budget of frames before landing
-    parent_folder  = model_path.parent.name
     results_folder = "score_results"
-    output_dir     = os.path.join(results_folder, parent_folder)
+    output_dir     = results_folder
     fixed          = args.fixed
     os.makedirs(output_dir, exist_ok=True)
 
@@ -334,8 +333,8 @@ if __name__ == "__main__":
 
     # ── Save CSV ───────────────────────────────────────────────────────────────
     if fixed > 0:
-        output_dir = "score_results/runs"
-        csv_path = os.path.join(output_dir, "var_fps_kf", f"eval_results_fixed_{fixed}.csv")
+        output_dir = "score_results/var_fps_kf"
+        csv_path = os.path.join(output_dir, f"eval_results_fixed_{fixed}.csv")
     else:
         csv_path = os.path.join(output_dir, "eval_results.csv")
     os.makedirs(output_dir, exist_ok=True)
