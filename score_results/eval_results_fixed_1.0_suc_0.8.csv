@@ -1,0 +1,2 @@
+model,frame_cost,budget,n_runs,n_episodes,reward_mean,reward_std,nav_reward_mean,nav_reward_std,frames_mean,frames_std,vy_mean,vy_std,success_pct_mean,success_pct_std
+runs/LunarLander_VarFramerate_SimplePadded__multi_ppo_lstm__1__1779370953/model.pt,2.0,5.0,10,100,-411.4922,0.0000,-407.3722,0.0000,3.11,0.00,0.9860,nan,9.00,0.00

@@ -1,0 +1,2 @@
+model,budget,success_pct_mean,vy_mean,frames_mean,S_norm,Vy_norm,F_norm,score
+runs/LunarLander_VarFramerate_SimplePadded_fc_2.0_bud_100.0_26-05-06-34-51/model.pt,100.0,88.0,0.2235,48.21,0.88,0.11175,0.19284,0.8533390000000001

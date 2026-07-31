@@ -1,0 +1,2 @@
+model,enable_wind,wind_power,turbulence_power,vertical_wind_power,n_runs,n_episodes,reward_mean,reward_std,steps_mean,steps_std,vy_mean,vy_std,success_pct_mean,success_pct_std
+runs/LunarLander_GaussianWind__train__windFalse_15.0_1.5__1__1785187605/model.pt,True,80.0,0.0,0.0,1,1000,178.1811,0.0000,228.65,0.00,0.3056,0.0000,56.50,0.00

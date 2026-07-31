@@ -1,0 +1,2 @@
+model,frame_cost,budget,n_runs,n_episodes,reward_mean,reward_std,nav_reward_mean,nav_reward_std,frames_mean,frames_std,vy_mean,vy_std,success_pct_mean,success_pct_std
+runs/LunarLander_VarFramerate_fc_2.0_bud_100_29-07-15-48-05/model.pt,2.0,100.0,1,1000,164.4763,0.0000,243.6983,0.0000,40.68,0.00,0.2927,0.0000,93.40,0.00

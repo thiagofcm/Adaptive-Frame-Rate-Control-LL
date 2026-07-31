@@ -1,0 +1,2 @@
+model,frame_cost,budget,n_runs,n_episodes,reward_mean,reward_std,nav_reward_mean,nav_reward_std,frames_mean,frames_std,vy_mean,vy_std,success_pct_mean,success_pct_std
+runs/LunarLander_VarFramerate_fc_2.0_bud_100_25-07-11-07-47/ckpts/timestep_6553600_iterations_200/ckpt_6553600_iterations_200.pt,2.0,100.0,1,100,117.7965,0.0000,216.9565,0.0000,50.62,0.00,0.2374,0.0000,96.00,0.00

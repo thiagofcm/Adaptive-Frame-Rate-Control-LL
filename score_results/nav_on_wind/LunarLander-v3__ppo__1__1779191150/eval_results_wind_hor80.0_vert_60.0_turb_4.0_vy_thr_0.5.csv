@@ -1,0 +1,2 @@
+model,enable_wind,wind_power,turbulence_power,vertical_wind_power,n_runs,n_episodes,reward_mean,reward_std,steps_mean,steps_std,vy_mean,vy_std,success_pct_mean,success_pct_std
+experiments/navigation/runs/LunarLander-v3__ppo__1__1779191150/model.pt,True,80.0,4.0,60.0,1,1000,130.1033,0.0000,181.90,0.00,0.4729,0.0000,40.90,0.00

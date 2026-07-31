@@ -1,0 +1,2 @@
+model,n_runs,n_episodes,reward_mean,reward_std,nav_reward_mean,nav_reward_std,frames_mean,frames_std,vy_mean,vy_std,success_pct_mean,success_pct_std
+runs/LunarLander_HighestFPS__train_highest_fps__1__1783460932/model.pt,1,3,286.7838,0.0000,286.7838,0.0000,169.67,0.00,0.1532,0.0000,100.00,0.00

@@ -1,0 +1,2 @@
+model,budget,success_pct_mean,vy_mean,frames_mean,S_norm,Vy_norm,F_norm,score
+ablations_runs/LunarLander_VarFramerate_SimplePadded_fc_0.0_bud_50.0_24-05-04-07-54/model.pt,50.0,96.0,0.3235,56.97,0.96,0.16175,0.22788,0.8483229999999999

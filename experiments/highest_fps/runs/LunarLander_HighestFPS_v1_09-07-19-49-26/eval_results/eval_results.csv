@@ -1,0 +1,2 @@
+model,n_runs,n_episodes,reward_mean,reward_std,nav_reward_mean,nav_reward_std,frames_mean,frames_std,vy_mean,vy_std,success_pct_mean,success_pct_std,mean_chosen_fps_mean,mean_chosen_fps_std
+experiments/highest_fps/runs/LunarLander_HighestFPS_v1_09-07-19-49-26/final.pt,1,100,278.3847,0.0000,248.6576,0.0000,148.91,0.00,0.1601,0.0000,87.00,0.00,47.86,0.00
