@@ -1,0 +1,137 @@
+/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/site-packages/pygame/pkgdata.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import resource_stream, resource_exists
+/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/site-packages/tyro/_parsers.py:353: UserWarning: The field `wandb-entity` is annotated with type `<class 'str'>`, but the default value `None` has type `<class 'NoneType'>`. We'll try to handle this gracefully, but it may cause unexpected behavior.
+  warnings.warn(message)
+/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/site-packages/tyro/_parsers.py:353: UserWarning: The field `target-kl` is annotated with type `<class 'float'>`, but the default value `None` has type `<class 'NoneType'>`. We'll try to handle this gracefully, but it may cause unexpected behavior.
+  warnings.warn(message)
+/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/site-packages/tyro/_parsers.py:353: UserWarning: The field `resume-path` is annotated with type `<class 'str'>`, but the default value `None` has type `<class 'NoneType'>`. We'll try to handle this gracefully, but it may cause unexpected behavior.
+  warnings.warn(message)
+Experiment info saved → runs/var_fps_kf/LunarLander_VarFramerate_KF_fc_2.0_bud_30_windTrue_20_2.0_vert20_sns0.05_01-08-13-50-03/info_settings.txt
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+global_step=3104 | return=-134.00 | steps=97
+global_step=3360 | return=-134.25 | steps=105
+global_step=3488 | return=-99.59 | steps=109
+global_step=3680 | return=-75.68 | steps=115
+global_step=3968 | return=-139.59 | steps=124
+global_step=4032 | return=-145.71 | steps=126
+global_step=4672 | return=-182.82 | steps=146
+global_step=5152 | return=-278.44 | steps=161
+global_step=6336 | return=-355.84 | steps=198
+global_step=6816 | return=-623.58 | steps=213
+global_step=6944 | return=-325.69 | steps=217
+global_step=7136 | return=-104.56 | steps=113
+global_step=7392 | return=-64.57 | steps=231
+global_step=7424 | return=-379.24 | steps=232
+global_step=8128 | return=24.05 | steps=138
+global_step=9376 | return=-638.55 | steps=293
+global_step=11008 | return=-155.00 | steps=344
+global_step=11680 | return=-389.30 | steps=365
+global_step=11840 | return=-502.27 | steps=152
+global_step=12288 | return=-208.30 | steps=129
+global_step=12480 | return=-303.00 | steps=390
+global_step=12544 | return=-159.09 | steps=392
+global_step=15232 | return=-280.95 | steps=252
+global_step=15424 | return=-453.30 | steps=188
+global_step=16000 | return=-170.33 | steps=500
+global_step=16000 | return=-32.09 | steps=500
+global_step=16000 | return=86.09 | steps=500
+global_step=16000 | return=-19.23 | steps=500
+global_step=16000 | return=13.06 | steps=500
+global_step=16000 | return=-133.79 | steps=500
+global_step=16000 | return=-142.62 | steps=500
+global_step=16000 | return=-416.11 | steps=500
+global_step=16000 | return=2.67 | steps=500
+global_step=16000 | return=23.06 | steps=500
+global_step=16000 | return=-9.48 | steps=500
+global_step=16000 | return=-106.17 | steps=500
+global_step=16000 | return=-16.12 | steps=500
+global_step=16000 | return=-26.53 | steps=500
+global_step=16096 | return=-413.11 | steps=405
+global_step=16928 | return=-285.73 | steps=382
+global_step=18144 | return=-339.14 | steps=405
+global_step=18368 | return=-252.69 | steps=203
+global_step=18528 | return=-169.66 | steps=78
+global_step=19392 | return=-16.79 | steps=500
+global_step=19424 | return=-327.39 | steps=374
+global_step=19520 | return=-328.63 | steps=133
+global_step=20000 | return=-122.77 | steps=500
+global_step=20064 | return=-11.70 | steps=500
+global_step=20192 | return=-236.06 | steps=246
+global_step=20832 | return=-330.50 | steps=150
+global_step=22240 | return=-156.43 | steps=194
+global_step=22368 | return=-21.60 | steps=500
+global_step=22656 | return=-398.52 | steps=207
+global_step=22848 | return=-50.98 | steps=500
+global_step=22880 | return=-93.67 | steps=108
+global_step=23264 | return=-418.68 | steps=116
+global_step=23424 | return=-176.79 | steps=500
+global_step=23808 | return=-476.93 | steps=243
+global_step=24224 | return=-544.11 | steps=366
+global_step=25440 | return=-539.31 | steps=450
+global_step=26304 | return=-157.05 | steps=242
+global_step=26528 | return=-466.41 | steps=463
+global_step=28384 | return=-619.25 | steps=386
+global_step=28576 | return=-94.91 | steps=500
+global_step=29024 | return=-472.99 | steps=149
+global_step=29312 | return=-515.98 | steps=433
+global_step=29408 | return=-344.41 | steps=287
+global_step=29696 | return=187.81 | steps=320
+global_step=30272 | return=-335.28 | steps=445
+global_step=30304 | return=-330.22 | steps=372
+global_step=30400 | return=-621.97 | steps=154
+global_step=31392 | return=-484.03 | steps=355
+global_step=32032 | return=-46.68 | steps=500
+global_step=32032 | return=-50.11 | steps=500
+global_step=32032 | return=-85.01 | steps=500
+global_step=32032 | return=12.52 | steps=500
+global_step=32032 | return=49.90 | steps=500
+global_step=32032 | return=15.98 | steps=500
+global_step=32032 | return=-117.07 | steps=500
+global_step=32128 | return=-5.49 | steps=500
+global_step=32608 | return=-145.46 | steps=274
+Traceback (most recent call last):
+  File "/md0/home/UFAD/tcuevasmestanza/Lunar-Lander/Lunar-CleanRL/experiments/var_fps_kf/train.py", line 512, in <module>
+    _, newlogprob, entropy, newvalue, _ = agent.get_action_and_value(
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/md0/home/UFAD/tcuevasmestanza/Lunar-Lander/Lunar-CleanRL/experiments/var_fps_kf/train.py", line 210, in get_action_and_value
+    hidden, lstm_state = self.get_states(x, lstm_state, done)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/md0/home/UFAD/tcuevasmestanza/Lunar-Lander/Lunar-CleanRL/experiments/var_fps_kf/train.py", line 193, in get_states
+    h, lstm_state = self.lstm(
+                    ^^^^^^^^^^
+  File "/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    def _wrapped_call_impl(self, *args, **kwargs):
+
+KeyboardInterrupt

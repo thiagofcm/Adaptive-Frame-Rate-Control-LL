@@ -49,7 +49,7 @@ class Args:
     # Algorithm specific arguments
     env_id: str = "LunarLander_VarFramerate_KF"
     """the id of the environment"""
-    total_timesteps: int = 20000000
+    total_timesteps: int = 50_000_000
     """total timesteps of the experiments"""
     learning_rate: float = 3.0e-4
     """the learning rate of the optimizer"""
@@ -293,12 +293,12 @@ if __name__ == "__main__":
             monitor_gym=True,
             save_code=True,
         )
-    writer = SummaryWriter(f"runs/{run_name}")
+    writer = SummaryWriter(f"runs/var_fps_kf/{run_name}")
     writer.add_text(
         "hyperparameters",
         "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
     )
-    info_file = os.path.join(f"runs/{run_name}", "info_settings.txt")
+    info_file = os.path.join(f"runs/var_fps_kf/{run_name}", "info_settings.txt")
     with open(info_file, "w") as f:
         for key, value in vars(args).items():
             f.write(f"{key}: {value}\n")
@@ -447,18 +447,16 @@ if __name__ == "__main__":
                         episode_fps_sum[i]   = 0
                         episode_fps_count[i] = 0
 
-            # frame_cost/budget/wind config are constant for the whole run -- log them
-            # straight from args instead of infos[...][0], which reads 0 whenever env 0
-            # happens to have just auto-reset that step (see the "chosen_fps" comment above)
-            writer.add_scalar("charts/frame_cost", args.frame_cost, global_step)
-            writer.add_scalar("charts/budget", args.budget, global_step)
-            writer.add_scalar("charts/enable_wind", float(args.enable_wind), global_step)
-            writer.add_scalar("charts/wind_power", args.wind_power, global_step)
-            writer.add_scalar("charts/turbulence_power", args.turbulence_power, global_step)
-            writer.add_scalar("charts/vertical_wind_power", args.vertical_wind_power, global_step)
-            writer.add_scalar("charts/sensor_noise_std", args.sensor_noise_std, global_step)
-
         #Buffer os experience completed.
+
+        # frame_cost/budget/wind config are constant for the whole run -- already fully
+        # captured in the "hyperparameters" text blob (below) and in every checkpoint's
+        # saved `args` dict, so logging them as a repeating scalar series was pure
+        # redundancy (previously done every rollout step -- ~10.9M redundant writes for
+        # these 7 tags alone over a 50M-timestep run). Dropped entirely; if you ever
+        # need to filter/color multiple sweep runs by one of these values directly in
+        # TensorBoard's scalar dashboard, re-add it as a single write right after
+        # `writer = SummaryWriter(...)` instead of inside the training loop.
 
         # -----------------------------------------------------------------
         # COMPUTING ADVANTAGES AND bootstrap value if EP in env not done
@@ -584,7 +582,7 @@ if __name__ == "__main__":
 
         # ── Checkpoint saving ──────────────────
         if iteration % 50 == 0:  # save every 50 iterations
-            checkpoint_path = f"runs/{run_name}/ckpts/timestep_{global_step}_iterations_{iteration}"
+            checkpoint_path = f"runs/var_fps_kf/{run_name}/ckpts/timestep_{global_step}_iterations_{iteration}"
             os.makedirs(checkpoint_path, exist_ok=True)
             checkpoint_model_path = f"{checkpoint_path}/ckpt_{global_step}_iterations_{iteration}.pt"
             torch.save({
@@ -620,6 +618,6 @@ if __name__ == "__main__":
         "optimizer_state_dict": optimizer.state_dict(),
         "args": vars(args),
         "global_step": global_step,
-    }, f"runs/{run_name}/model.pt")
-    print(f"Model saved → runs/{run_name}/model.pt")
+    }, f"runs/var_fps_kf/{run_name}/model.pt")
+    print(f"Model saved → runs/var_fps_kf/{run_name}/model.pt")
     writer.close()

@@ -1,0 +1,48 @@
+# Sweep config for experiments/lunar_lander_var_fps_kf_hold/train.py
+# (LunarLander_VarFramerate_KF_Hold). experiments/lunar_lander_var_fps_kf_hold/sweep.py
+# takes the Cartesian product of the `sweep:` section (a single dimension here: budget)
+# and launches one train.py subprocess per combination, each pinned to its own CPU
+# core(s) via taskset.
+#
+# Same schema/values as config/sweep_lunar_lander_kf.yaml -- this is the "KF only
+# estimates on fresh/sampling ticks, holds the last fused estimate exactly during
+# staleness" ablation of that same env/config, see envs/lunar_lander_var_fps_kf_hold.py.
+seed: 1
+total_timesteps: 50_000_000
+learning_rate: 0.0003
+num_envs: 32
+num_steps: 1024
+gamma: 0.99
+gae_lambda: 0.98
+num_minibatches: 16
+update_epochs: 4
+norm_adv: true
+clip_coef: 0.2
+clip_vloss: true
+ent_coef: 0.05
+vf_coef: 0.5
+max_grad_norm: 0.5
+anneal_lr: false
+frame_cost: 2.0
+max_episode_steps: 500
+# Relative to the repo root (sweep.py launches train.py subprocesses with cwd=REPO_ROOT
+# -- see LAUNCH_CWD in sweep.py). Same wind-trained, KF-fused-observation-trained nav
+# model as config/sweep_lunar_lander_kf.yaml uses -- this ablation only changes the
+# adaptive-FPS env's own stale-tick behavior, not the frozen nav controller.
+nav_model_path: "runs/navigation_kf/LunarLander_GaussianWind_KF__train__windTrue_20.0_2.0_vert20.0_sns0.05__1__1785455192/model.pt"
+async_envs: true
+
+# Wind + Kalman-filter env parameters (see envs/lunar_lander_var_fps_kf_hold.py)
+enable_wind: true
+wind_power: 20
+vertical_wind_power: 20
+turbulence_power: 2.0
+# std-dev of the Gaussian measurement noise added to all 6 filtered state dims on
+# sampling ticks. Same value as config/sweep_lunar_lander_kf.yaml for a fair comparison
+# between the two ablations.
+sensor_noise_std: 0.05
+
+# Sweep combinations -- experiments/lunar_lander_var_fps_kf_hold/sweep.py builds the
+# Cartesian product across these lists (currently a single dimension: budget).
+sweep:
+  budget: [25, 30, 50, 75, 100]

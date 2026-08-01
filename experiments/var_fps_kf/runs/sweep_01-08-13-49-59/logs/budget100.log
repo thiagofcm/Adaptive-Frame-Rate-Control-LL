@@ -1,0 +1,101 @@
+/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/site-packages/pygame/pkgdata.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import resource_stream, resource_exists
+/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/site-packages/tyro/_parsers.py:353: UserWarning: The field `wandb-entity` is annotated with type `<class 'str'>`, but the default value `None` has type `<class 'NoneType'>`. We'll try to handle this gracefully, but it may cause unexpected behavior.
+  warnings.warn(message)
+/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/site-packages/tyro/_parsers.py:353: UserWarning: The field `target-kl` is annotated with type `<class 'float'>`, but the default value `None` has type `<class 'NoneType'>`. We'll try to handle this gracefully, but it may cause unexpected behavior.
+  warnings.warn(message)
+/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/site-packages/tyro/_parsers.py:353: UserWarning: The field `resume-path` is annotated with type `<class 'str'>`, but the default value `None` has type `<class 'NoneType'>`. We'll try to handle this gracefully, but it may cause unexpected behavior.
+  warnings.warn(message)
+Experiment info saved → runs/var_fps_kf/LunarLander_VarFramerate_KF_fc_2.0_bud_100_windTrue_20_2.0_vert20_sns0.05_01-08-13-50-06/info_settings.txt
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+global_step=3104 | return=-134.00 | steps=97
+global_step=3360 | return=-134.25 | steps=105
+global_step=3488 | return=-99.59 | steps=109
+global_step=3680 | return=-75.68 | steps=115
+global_step=3968 | return=-139.59 | steps=124
+global_step=4032 | return=-145.71 | steps=126
+global_step=4672 | return=-182.82 | steps=146
+global_step=5152 | return=-278.44 | steps=161
+global_step=6336 | return=-355.84 | steps=198
+global_step=6816 | return=-623.58 | steps=213
+global_step=6944 | return=-325.69 | steps=217
+global_step=7136 | return=-104.56 | steps=113
+global_step=7392 | return=-64.57 | steps=231
+global_step=7424 | return=-379.24 | steps=232
+global_step=8128 | return=24.05 | steps=138
+global_step=9376 | return=-638.55 | steps=293
+global_step=11008 | return=-155.00 | steps=344
+global_step=11680 | return=-389.30 | steps=365
+global_step=11840 | return=-502.27 | steps=152
+global_step=12288 | return=-208.30 | steps=129
+global_step=12480 | return=-303.00 | steps=390
+global_step=12544 | return=-159.09 | steps=392
+global_step=15232 | return=-280.95 | steps=252
+global_step=15424 | return=-453.30 | steps=188
+global_step=16000 | return=-170.33 | steps=500
+global_step=16000 | return=-32.09 | steps=500
+global_step=16000 | return=86.09 | steps=500
+global_step=16000 | return=-19.23 | steps=500
+global_step=16000 | return=13.06 | steps=500
+global_step=16000 | return=-133.79 | steps=500
+global_step=16000 | return=-142.62 | steps=500
+global_step=16000 | return=-416.11 | steps=500
+global_step=16000 | return=2.67 | steps=500
+global_step=16000 | return=23.06 | steps=500
+global_step=16000 | return=-9.48 | steps=500
+global_step=16000 | return=-106.17 | steps=500
+global_step=16000 | return=-16.12 | steps=500
+global_step=16000 | return=-26.53 | steps=500
+global_step=16096 | return=-413.11 | steps=405
+Traceback (most recent call last):
+  File "/md0/home/UFAD/tcuevasmestanza/Lunar-Lander/Lunar-CleanRL/experiments/var_fps_kf/train.py", line 405, in <module>
+    next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
+                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/site-packages/gymnasium/vector/async_vector_env.py", line 390, in step
+    return self.step_wait()
+           ^^^^^^^^^^^^^^^^
+  File "/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/site-packages/gymnasium/vector/async_vector_env.py", line 449, in step_wait
+    env_step_return, success = pipe.recv()
+                               ^^^^^^^^^^^
+  File "/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/multiprocessing/connection.py", line 250, in recv
+    buf = self._recv_bytes()
+          ^^^^^^^^^^^^^^^^^^
+  File "/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/multiprocessing/connection.py", line 430, in _recv_bytes
+    buf = self._recv(4)
+          ^^^^^^^^^^^^^
+  File "/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/multiprocessing/connection.py", line 395, in _recv
+    chunk = read(handle, remaining)
+            ^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

@@ -1,0 +1,2 @@
+model,frame_cost,budget,n_runs,n_episodes,enable_wind,wind_power,turbulence_power,vertical_wind_power,sensor_noise_std,reward_mean,reward_std,nav_reward_mean,nav_reward_std,frames_mean,frames_std,vy_mean,vy_std,success_pct_mean
+runs/var_fps_kf_hold/LunarLander_VarFramerate_KF_Hold_fc_2.0_bud_100_windTrue_20_2.0_vert20_sns0.05_31-07-20-04-42/ckpts/timestep_39321600_iterations_1200/ckpt_39321600_iterations_1200.pt,2.0,100.0,1,1000,True,20.0,2.0,20.0,0.05,-133.1180,139.8917,-75.5720,139.3715,29.87,8.00,0.2937,0.1302,30.10

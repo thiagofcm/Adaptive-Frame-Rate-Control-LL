@@ -851,7 +851,7 @@ class LunarLander_VarFramerate_KF(LunarLander):
         if touchdown_check:
             self.touchdown_flag = True
             self.landing_phase = False
-            if vy > 0.3: # Set to 0.4 only for testing. 0.2 is the value we were using before.
+            if vy > 0.3: # Set to 0.3 because the 50FPS on navigation KF gets 0.2 on avg
                 reward = -100
         # If the spacecraft just landed, set touchdown_flag == True, so touchdown_check will be false and next step
         # and this verification only happens once.
@@ -1030,7 +1030,6 @@ class LunarLander_VarFramerate_KF(LunarLander):
             ])
             # last_sampled_obs still gets set from this -- it's what holds the booleans
             # (and, harmlessly, a KF snapshot) across subsequent stale ticks.
-            self.last_sampled_obs = obs_values.copy()
 
         else:
             # Stale tick: no new measurement -- use the KF's predicted estimate (not a
@@ -1044,7 +1043,8 @@ class LunarLander_VarFramerate_KF(LunarLander):
             # Debbuging mask, which indicates which values in the observation are valid (1 for valid, 0 for invalid)
             obs_mask = np.zeros_like(self.last_sampled_obs, dtype=np.float32)
             frame_consumed = False
-        
+
+        self.last_sampled_obs = obs_values.copy()
         # 5. Compute reward based on the navigation reward obtained from the physics step, and apply a penalty if a new frame was consumed
         frame_penalty = self.frame_cost if frame_consumed else 0.0
 
@@ -1063,7 +1063,10 @@ class LunarLander_VarFramerate_KF(LunarLander):
         aug_obs = self._get_augmented_obs(obs_values)
         self.obs_buffer.append(aug_obs.copy())
 
-        new_obs = self._get_sequence_obs()
+        #new_obs = self._get_sequence_obs()
+        # print("Step ", self.world_step_count)
+        # print("DEBUG: obs =", new_obs)
+        # print("-----------------------------------------------------------------------------")
         
         info = dict(info)
         info["reward"] = reward

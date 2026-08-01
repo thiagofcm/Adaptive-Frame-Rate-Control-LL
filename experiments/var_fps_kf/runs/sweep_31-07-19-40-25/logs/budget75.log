@@ -1,0 +1,394 @@
+/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/site-packages/pygame/pkgdata.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import resource_stream, resource_exists
+/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/site-packages/tyro/_parsers.py:353: UserWarning: The field `wandb-entity` is annotated with type `<class 'str'>`, but the default value `None` has type `<class 'NoneType'>`. We'll try to handle this gracefully, but it may cause unexpected behavior.
+  warnings.warn(message)
+/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/site-packages/tyro/_parsers.py:353: UserWarning: The field `target-kl` is annotated with type `<class 'float'>`, but the default value `None` has type `<class 'NoneType'>`. We'll try to handle this gracefully, but it may cause unexpected behavior.
+  warnings.warn(message)
+/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/site-packages/tyro/_parsers.py:353: UserWarning: The field `resume-path` is annotated with type `<class 'str'>`, but the default value `None` has type `<class 'NoneType'>`. We'll try to handle this gracefully, but it may cause unexpected behavior.
+  warnings.warn(message)
+Experiment info saved → runs/LunarLander_VarFramerate_KF_fc_2.0_bud_75_windTrue_20_2.0_vert20_sns0.05_31-07-19-40-31/info_settings.txt
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+Navigation Model Loaded
+global_step=1664 | return=-329.13 | steps=52
+global_step=1696 | return=-357.64 | steps=53
+global_step=1824 | return=-430.85 | steps=57
+global_step=1856 | return=-463.34 | steps=58
+global_step=1888 | return=-380.38 | steps=59
+global_step=2016 | return=-300.99 | steps=63
+global_step=2080 | return=-196.83 | steps=65
+global_step=2112 | return=-502.33 | steps=66
+global_step=2336 | return=-237.97 | steps=73
+global_step=2336 | return=-532.24 | steps=73
+global_step=2336 | return=-132.87 | steps=73
+global_step=2400 | return=-216.66 | steps=75
+global_step=2432 | return=-338.34 | steps=76
+global_step=2592 | return=-578.31 | steps=81
+global_step=2624 | return=-188.36 | steps=82
+global_step=2624 | return=-263.13 | steps=82
+global_step=2720 | return=-730.40 | steps=85
+global_step=2752 | return=-147.86 | steps=86
+global_step=2752 | return=-382.88 | steps=86
+global_step=2784 | return=-194.97 | steps=87
+global_step=2816 | return=-877.07 | steps=88
+global_step=2848 | return=-118.16 | steps=89
+global_step=2912 | return=-322.73 | steps=91
+global_step=2912 | return=-399.77 | steps=91
+global_step=3040 | return=-103.73 | steps=95
+global_step=3360 | return=-227.40 | steps=105
+global_step=3552 | return=-120.58 | steps=111
+global_step=3872 | return=-261.06 | steps=67
+global_step=3904 | return=-350.78 | steps=122
+global_step=4192 | return=-727.40 | steps=73
+global_step=4352 | return=-488.27 | steps=62
+global_step=4384 | return=-225.05 | steps=51
+global_step=4384 | return=-254.88 | steps=84
+global_step=4448 | return=-202.29 | steps=139
+global_step=4480 | return=-279.45 | steps=57
+global_step=4480 | return=-496.43 | steps=76
+global_step=4608 | return=-361.39 | steps=55
+global_step=4640 | return=-214.09 | steps=78
+global_step=4864 | return=-221.85 | steps=60
+global_step=4992 | return=-231.82 | steps=73
+global_step=5024 | return=-215.74 | steps=83
+global_step=5024 | return=-168.62 | steps=157
+global_step=5088 | return=-238.87 | steps=71
+global_step=5120 | return=-795.30 | steps=160
+global_step=5536 | return=-183.39 | steps=97
+global_step=5632 | return=-227.61 | steps=99
+global_step=5696 | return=-265.80 | steps=72
+global_step=5824 | return=-194.50 | steps=86
+global_step=5856 | return=-303.30 | steps=91
+global_step=5984 | return=-104.82 | steps=97
+global_step=5984 | return=-239.04 | steps=55
+global_step=6016 | return=-258.50 | steps=101
+global_step=6016 | return=-338.68 | steps=128
+global_step=6240 | return=-353.93 | steps=113
+global_step=6304 | return=-617.45 | steps=74
+global_step=6560 | return=-265.95 | steps=64
+global_step=6592 | return=-238.49 | steps=61
+global_step=6656 | return=-218.95 | steps=86
+global_step=6688 | return=-219.17 | steps=143
+global_step=6688 | return=-411.30 | steps=69
+global_step=6688 | return=-468.25 | steps=71
+global_step=6720 | return=-485.51 | steps=151
+global_step=6912 | return=-167.68 | steps=79
+global_step=6912 | return=-631.06 | steps=104
+global_step=7168 | return=-222.58 | steps=224
+global_step=7168 | return=-246.04 | steps=71
+global_step=7168 | return=-385.80 | steps=78
+global_step=7232 | return=-516.70 | steps=139
+global_step=7264 | return=-516.68 | steps=69
+global_step=7680 | return=-258.99 | steps=57
+global_step=7744 | return=-233.73 | steps=65
+global_step=7840 | return=-223.67 | steps=85
+global_step=7840 | return=-226.34 | steps=57
+global_step=7872 | return=-274.72 | steps=108
+global_step=8096 | return=-113.85 | steps=79
+global_step=8224 | return=-226.71 | steps=51
+global_step=8416 | return=-261.39 | steps=74
+global_step=8448 | return=-425.39 | steps=75
+global_step=8512 | return=-639.45 | steps=87
+global_step=8608 | return=-246.39 | steps=71
+global_step=8640 | return=-358.06 | steps=82
+global_step=8800 | return=-226.99 | steps=50
+global_step=8896 | return=-200.07 | steps=67
+global_step=8928 | return=-258.09 | steps=69
+global_step=8928 | return=-214.42 | steps=54
+global_step=9216 | return=-383.01 | steps=92
+global_step=9248 | return=-400.80 | steps=131
+global_step=9344 | return=-173.24 | steps=67
+global_step=9408 | return=-105.96 | steps=137
+global_step=9440 | return=-208.93 | steps=88
+global_step=9600 | return=-211.96 | steps=54
+global_step=9696 | return=-250.14 | steps=62
+global_step=9824 | return=-397.98 | steps=53
+global_step=9984 | return=-99.99 | steps=103
+global_step=10016 | return=-736.76 | steps=85
+global_step=10112 | return=-333.76 | steps=89
+global_step=10176 | return=-200.45 | steps=177
+global_step=10368 | return=-130.03 | steps=53
+global_step=10560 | return=-231.90 | steps=83
+global_step=10624 | return=-196.26 | steps=115
+global_step=10656 | return=-511.76 | steps=66
+global_step=10688 | return=-233.40 | steps=117
+global_step=10784 | return=-347.63 | steps=127
+global_step=10816 | return=-298.10 | steps=73
+global_step=10912 | return=-470.74 | steps=62
+global_step=11072 | return=-506.28 | steps=70
+global_step=11104 | return=-269.48 | steps=83
+global_step=11136 | return=-236.43 | steps=78
+global_step=11296 | return=-341.52 | steps=169
+global_step=11360 | return=-485.85 | steps=60
+global_step=11552 | return=-722.24 | steps=81
+global_step=11616 | return=-263.26 | steps=73
+global_step=11712 | return=279.07 | steps=205
+global_step=11968 | return=-325.53 | steps=94
+global_step=11968 | return=1.23 | steps=131
+global_step=12064 | return=-110.82 | steps=131
+global_step=12192 | return=-260.33 | steps=77
+global_step=12352 | return=207.24 | steps=312
+global_step=12416 | return=-324.41 | steps=50
+global_step=12544 | return=-347.22 | steps=84
+global_step=12736 | return=-164.63 | steps=81
+global_step=12800 | return=-250.48 | steps=67
+global_step=12800 | return=-719.19 | steps=86
+global_step=12832 | return=-739.46 | steps=191
+global_step=12896 | return=-210.58 | steps=55
+global_step=12928 | return=-259.75 | steps=65
+global_step=12992 | return=-212.05 | steps=59
+global_step=13056 | return=-246.99 | steps=89
+global_step=13120 | return=-418.95 | steps=79
+global_step=13376 | return=-376.80 | steps=117
+global_step=13408 | return=-300.91 | steps=126
+global_step=13408 | return=-298.63 | steps=65
+global_step=13472 | return=-184.01 | steps=96
+global_step=13504 | return=-97.28 | steps=80
+global_step=13504 | return=-437.55 | steps=58
+global_step=13856 | return=-307.76 | steps=77
+global_step=13952 | return=-619.46 | steps=74
+global_step=14016 | return=-203.45 | steps=51
+global_step=14208 | return=-368.84 | steps=69
+global_step=14304 | return=-187.11 | steps=72
+global_step=14688 | return=-217.19 | steps=163
+global_step=14784 | return=-180.63 | steps=127
+global_step=14784 | return=-377.33 | steps=51
+global_step=14784 | return=-245.27 | steps=58
+global_step=14912 | return=-289.96 | steps=77
+global_step=15104 | return=-241.36 | steps=94
+global_step=15136 | return=-632.41 | steps=71
+global_step=15200 | return=-235.17 | steps=52
+global_step=15200 | return=-160.57 | steps=93
+global_step=15488 | return=-548.57 | steps=64
+global_step=15616 | return=-353.58 | steps=54
+global_step=15616 | return=-208.16 | steps=83
+global_step=15744 | return=-615.78 | steps=143
+global_step=15744 | return=-541.29 | steps=73
+global_step=15744 | return=-225.37 | steps=72
+global_step=15808 | return=-218.83 | steps=101
+global_step=15872 | return=-292.48 | steps=59
+global_step=16032 | return=-158.79 | steps=134
+global_step=16096 | return=-150.37 | steps=96
+global_step=16352 | return=-133.52 | steps=177
+global_step=16544 | return=-333.08 | steps=50
+global_step=16640 | return=-441.70 | steps=60
+global_step=16704 | return=-280.81 | steps=100
+global_step=17216 | return=-249.62 | steps=93
+global_step=17312 | return=-360.20 | steps=52
+global_step=17344 | return=-336.86 | steps=141
+global_step=17344 | return=-108.71 | steps=119
+global_step=17408 | return=-229.91 | steps=81
+global_step=17568 | return=-248.28 | steps=86
+global_step=17600 | return=-357.87 | steps=77
+global_step=17632 | return=-181.05 | steps=88
+global_step=17632 | return=-460.48 | steps=150
+global_step=17696 | return=-792.89 | steps=264
+global_step=17760 | return=-281.64 | steps=81
+global_step=17824 | return=-699.51 | steps=81
+global_step=17888 | return=-587.41 | steps=83
+global_step=17888 | return=-560.96 | steps=64
+global_step=17984 | return=-79.63 | steps=153
+global_step=18368 | return=100.32 | steps=261
+global_step=18464 | return=-267.61 | steps=84
+global_step=18560 | return=-193.23 | steps=95
+global_step=18592 | return=-240.60 | steps=63
+global_step=18816 | return=-504.10 | steps=95
+global_step=19232 | return=-239.70 | steps=58
+global_step=19392 | return=-733.53 | steps=83
+global_step=19392 | return=-240.15 | steps=63
+global_step=19488 | return=-385.27 | steps=210
+global_step=19552 | return=-247.64 | steps=57
+global_step=19616 | return=-322.24 | steps=68
+global_step=19648 | return=-207.20 | steps=54
+global_step=19680 | return=-273.46 | steps=357
+global_step=19744 | return=-253.01 | steps=78
+global_step=20000 | return=-481.98 | steps=83
+global_step=20096 | return=-407.72 | steps=124
+global_step=20160 | return=-247.62 | steps=80
+global_step=20160 | return=-495.39 | steps=72
+global_step=20224 | return=-526.39 | steps=76
+global_step=20256 | return=-431.66 | steps=136
+global_step=20384 | return=-220.80 | steps=189
+global_step=20384 | return=-454.33 | steps=198
+global_step=20416 | return=-87.72 | steps=117
+global_step=20448 | return=-282.95 | steps=88
+global_step=20448 | return=-367.01 | steps=76
+global_step=20448 | return=-544.52 | steps=87
+global_step=20576 | return=-604.41 | steps=68
+global_step=20672 | return=-195.21 | steps=86
+global_step=20992 | return=-239.57 | steps=54
+global_step=21088 | return=-361.01 | steps=81
+global_step=21184 | return=-182.81 | steps=80
+global_step=21216 | return=-339.62 | steps=82
+global_step=21344 | return=19.27 | steps=155
+global_step=21376 | return=-479.37 | steps=61
+global_step=21472 | return=-587.99 | steps=82
+global_step=21600 | return=-300.34 | steps=68
+global_step=21632 | return=175.07 | steps=183
+global_step=21888 | return=-721.68 | steps=70
+global_step=22016 | return=-229.81 | steps=70
+global_step=22080 | return=-462.94 | steps=64
+global_step=22240 | return=-135.87 | steps=85
+global_step=22272 | return=-483.89 | steps=62
+global_step=22272 | return=-209.05 | steps=84
+global_step=22304 | return=-468.20 | steps=58
+global_step=22304 | return=-218.23 | steps=53
+global_step=22368 | return=-281.44 | steps=59
+global_step=22720 | return=-243.77 | steps=63
+global_step=22752 | return=-393.83 | steps=96
+global_step=22784 | return=-167.41 | steps=96
+global_step=22816 | return=-528.71 | steps=75
+global_step=23008 | return=-365.19 | steps=88
+global_step=23072 | return=-729.79 | steps=169
+global_step=23136 | return=-200.38 | steps=92
+global_step=23296 | return=-131.40 | steps=90
+global_step=23360 | return=128.30 | steps=228
+global_step=23360 | return=-252.28 | steps=67
+global_step=23456 | return=-250.66 | steps=73
+global_step=23456 | return=-216.29 | steps=64
+global_step=23616 | return=-170.18 | steps=98
+global_step=23680 | return=-267.65 | steps=64
+global_step=23776 | return=-255.48 | steps=103
+global_step=23968 | return=-250.56 | steps=58
+global_step=24032 | return=-158.16 | steps=94
+global_step=24096 | return=-227.64 | steps=56
+global_step=24096 | return=-319.28 | steps=85
+global_step=24224 | return=-250.75 | steps=85
+global_step=24320 | return=-216.51 | steps=131
+global_step=24352 | return=-254.30 | steps=84
+global_step=24512 | return=-186.79 | steps=81
+global_step=24640 | return=-496.33 | steps=72
+global_step=24768 | return=-364.75 | steps=74
+global_step=25120 | return=-211.48 | steps=87
+global_step=25216 | return=-340.13 | steps=91
+global_step=25280 | return=-269.30 | steps=70
+global_step=25504 | return=-210.47 | steps=73
+global_step=25504 | return=-641.50 | steps=85
+global_step=25696 | return=-338.68 | steps=59
+global_step=25728 | return=-338.11 | steps=54
+global_step=25728 | return=-447.98 | steps=70
+global_step=25824 | return=-350.58 | steps=55
+global_step=25824 | return=-117.32 | steps=94
+global_step=25856 | return=-404.66 | steps=144
+global_step=25856 | return=-406.97 | steps=77
+global_step=26016 | return=-236.61 | steps=84
+global_step=26080 | return=-506.59 | steps=93
+global_step=26112 | return=-379.96 | steps=82
+global_step=26176 | return=-185.47 | steps=77
+global_step=26208 | return=-342.31 | steps=105
+global_step=26368 | return=-542.82 | steps=66
+global_step=26432 | return=-145.19 | steps=95
+global_step=26528 | return=-541.18 | steps=67
+global_step=26720 | return=90.16 | steps=202
+global_step=26720 | return=-221.21 | steps=64
+global_step=26816 | return=-165.37 | steps=142
+global_step=26848 | return=-229.82 | steps=85
+global_step=26880 | return=-133.29 | steps=86
+global_step=27008 | return=-242.78 | steps=83
+global_step=27104 | return=-301.59 | steps=136
+global_step=27392 | return=-276.52 | steps=51
+global_step=27424 | return=-481.31 | steps=68
+global_step=27488 | return=-399.89 | steps=55
+global_step=27488 | return=-174.81 | steps=61
+global_step=27520 | return=-192.81 | steps=371
+global_step=27648 | return=-336.84 | steps=50
+global_step=27680 | return=-417.70 | steps=90
+global_step=27904 | return=-254.36 | steps=81
+global_step=28032 | return=-430.69 | steps=59
+global_step=28064 | return=-355.92 | steps=52
+global_step=28160 | return=-589.15 | steps=141
+global_step=28288 | return=-101.77 | steps=98
+global_step=28352 | return=-254.54 | steps=77
+global_step=28640 | return=-317.69 | steps=50
+global_step=28640 | return=-314.37 | steps=68
+global_step=28768 | return=-313.38 | steps=132
+global_step=28800 | return=-467.02 | steps=60
+global_step=28832 | return=-116.95 | steps=96
+global_step=28864 | return=-449.79 | steps=82
+global_step=28864 | return=-123.44 | steps=94
+global_step=28896 | return=-529.25 | steps=67
+global_step=29024 | return=-126.34 | steps=109
+global_step=29024 | return=-359.34 | steps=88
+global_step=29056 | return=-418.14 | steps=60
+global_step=29248 | return=-206.90 | steps=75
+global_step=29312 | return=-109.53 | steps=100
+global_step=29312 | return=-389.85 | steps=56
+global_step=29504 | return=-390.75 | steps=57
+global_step=29728 | return=-145.82 | steps=93
+global_step=29760 | return=-352.43 | steps=64
+global_step=29856 | return=-414.28 | steps=60
+global_step=29856 | return=-488.26 | steps=103
+global_step=30112 | return=-289.68 | steps=83
+global_step=30336 | return=-221.85 | steps=87
+global_step=30464 | return=-118.27 | steps=143
+global_step=30528 | return=-461.73 | steps=69
+global_step=30720 | return=-487.73 | steps=100
+global_step=30944 | return=-227.07 | steps=67
+global_step=30944 | return=-331.17 | steps=86
+global_step=30944 | return=-266.16 | steps=89
+global_step=30976 | return=-260.96 | steps=60
+global_step=31040 | return=-585.03 | steps=61
+global_step=31264 | return=-282.04 | steps=62
+global_step=31424 | return=-478.16 | steps=65
+global_step=31424 | return=-570.95 | steps=74
+global_step=31520 | return=-410.25 | steps=177
+global_step=31584 | return=-393.09 | steps=53
+global_step=31584 | return=-221.57 | steps=91
+global_step=31584 | return=-222.34 | steps=84
+global_step=31616 | return=-493.41 | steps=87
+global_step=31744 | return=-288.64 | steps=88
+global_step=31808 | return=-220.32 | steps=91
+global_step=31840 | return=-250.66 | steps=93
+global_step=31840 | return=-482.99 | steps=108
+global_step=32000 | return=-183.55 | steps=58
+global_step=32160 | return=-687.17 | steps=71
+global_step=32288 | return=-214.81 | steps=60
+global_step=32416 | return=-311.18 | steps=172
+global_step=32512 | return=-670.27 | steps=327
+global_step=32512 | return=-156.70 | steps=85
+global_step=32640 | return=-234.74 | steps=163
+global_step=32736 | return=-334.49 | steps=106
+Traceback (most recent call last):
+  File "/md0/home/UFAD/tcuevasmestanza/Lunar-Lander/Lunar-CleanRL/experiments/var_fps_kf/train.py", line 512, in <module>
+    _, newlogprob, entropy, newvalue, _ = agent.get_action_and_value(
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/md0/home/UFAD/tcuevasmestanza/Lunar-Lander/Lunar-CleanRL/experiments/var_fps_kf/train.py", line 210, in get_action_and_value
+    hidden, lstm_state = self.get_states(x, lstm_state, done)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/md0/home/UFAD/tcuevasmestanza/Lunar-Lander/Lunar-CleanRL/experiments/var_fps_kf/train.py", line 192, in get_states
+    for h, d in zip(hidden, done):
+                ^^^^^^^^^^^^^^^^^
+  File "/home/UFAD/tcuevasmestanza/.conda/envs/lunar/lib/python3.12/site-packages/torch/_tensor.py", line 1223, in __iter__
+    return iter(self.unbind(0))
+           ^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

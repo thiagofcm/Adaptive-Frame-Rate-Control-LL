@@ -6,7 +6,7 @@
 # Same schema as config/sweep.yaml plus the wind/Kalman-filter params: enable_wind,
 # wind_power, turbulence_power, vertical_wind_power, sensor_noise_std.
 seed: 1
-total_timesteps: 20000000
+total_timesteps: 50_000_000
 learning_rate: 0.0003
 num_envs: 32
 num_steps: 1024
