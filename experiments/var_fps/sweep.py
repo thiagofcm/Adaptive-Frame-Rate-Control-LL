@@ -42,11 +42,20 @@ def parse_args():
                          "async_envs=true (must supply the full pool sized for whichever combos need "
                          "more than 1 -- see compute_cores_per_combo); omit to auto-detect cores not "
                          "already claimed by another process (see detect_free_cpus)")
-    p.add_argument("--sequential", action="store_true",
+    mode_group = p.add_mutually_exclusive_group()
+    mode_group.add_argument("--sequential", action="store_true",
                     help="run one combination at a time instead of launching them all in parallel")
+    mode_group.add_argument("--max-parallel", type=int, default=None,
+                    help="cap on how many training runs are alive simultaneously; when one finishes, "
+                         "the next pending combination launches immediately, reusing its CPU cores "
+                         "(mutually exclusive with --sequential; only needs cores for the max "
+                         "concurrently running jobs, not every combination in the sweep upfront)")
     p.add_argument("--extra", type=str, default="",
                     help="extra CLI args forwarded verbatim to train.py")
-    return p.parse_args()
+    args = p.parse_args()
+    if args.max_parallel is not None and args.max_parallel < 1:
+        p.error("--max-parallel must be >= 1")
+    return args
 
 
 def load_sweep_config(path):
@@ -164,6 +173,48 @@ def launch(run_cfg_path, cpu_block, gpu, args, log_dir, tag):
     return proc, log_file
 
 
+def run_max_parallel(combos, cores_needed, cpus, gpus, base_cfg, args, cfg_dir, log_dir, max_parallel):
+    """Keep at most max_parallel training runs alive simultaneously. CPU cores are
+    handed out from a shared pool (sized in main() for the max concurrently running
+    jobs, not every combo in the sweep) and returned to the pool as soon as a run
+    finishes, so the next pending combination can immediately reuse them."""
+    free_cpus = list(cpus)
+    pending = list(enumerate(combos))
+    running = []  # list of dicts: tag, proc, log_file, cpu_block
+
+    def launch_one():
+        i, overrides = pending.pop(0)
+        merged = {**base_cfg, **overrides}
+        if args.total_timesteps is not None:
+            merged["total_timesteps"] = args.total_timesteps
+
+        tag = combo_tag(overrides)
+        run_cfg_path = os.path.join(cfg_dir, f"{tag}.yaml")
+        with open(run_cfg_path, "w") as f:
+            yaml.safe_dump(merged, f)
+
+        n = cores_needed[i]
+        cpu_block, free_cpus[:] = free_cpus[:n], free_cpus[n:]
+        gpu = gpus[i % len(gpus)]
+        proc, log_file = launch(run_cfg_path, cpu_block, gpu, args, log_dir, tag)
+        running.append({"tag": tag, "proc": proc, "log_file": log_file, "cpu_block": cpu_block})
+        time.sleep(1)  # stagger run_name timestamps so directories can't collide
+
+    while pending and len(running) < max_parallel:
+        launch_one()
+
+    while running:
+        time.sleep(2)
+        for entry in list(running):
+            if entry["proc"].poll() is not None:
+                entry["log_file"].close()
+                print(f"[sweep] {entry['tag']} finished (exit={entry['proc'].returncode})")
+                free_cpus.extend(entry["cpu_block"])
+                running.remove(entry)
+                if pending:
+                    launch_one()
+
+
 def main():
     args = parse_args()
     base_cfg, sweep_params = load_sweep_config(args.config)
@@ -173,14 +224,40 @@ def main():
     # async_envs=True (see compute_cores_per_combo) -- Async workers need real distinct
     # cores, not a share of one, or they get zero parallelism benefit.
     cores_needed = [compute_cores_per_combo(base_cfg, overrides) for overrides in combos]
-    total_cores_needed = sum(cores_needed)
+
+    if args.max_parallel is not None:
+        # Only the max concurrently running jobs need distinct cores -- sized
+        # conservatively (max_parallel * the largest single per-combo requirement) so
+        # any subset of max_parallel combos can run together, regardless of which
+        # ones happen to land in the same window.
+        max_parallel = min(args.max_parallel, len(combos)) if combos else 0
+        total_cores_needed = max_parallel * max(cores_needed) if cores_needed else 0
+    else:
+        total_cores_needed = sum(cores_needed)
 
     gpus = args.gpus if args.gpus is not None else detect_gpus()
     cpus = args.cpus if args.cpus is not None else detect_free_cpus(total_cores_needed)
     if len(cpus) < total_cores_needed:
+        if args.max_parallel is not None:
+            raise ValueError(f"--max-parallel {max_parallel} needs {total_cores_needed} distinct CPU "
+                              f"cores (max_parallel * the largest per-combo requirement), only got "
+                              f"{len(cpus)} via --cpus; omit --cpus to auto-assign")
         raise ValueError(f"{len(combos)} combinations need {total_cores_needed} distinct CPU cores total "
                           f"(sum of per-combo requirements -- higher than {len(combos)} when any combo "
                           f"uses async_envs), only got {len(cpus)} via --cpus; omit --cpus to auto-assign")
+
+    date_str = datetime.now().strftime("%d-%m-%H-%M-%S")
+    run_root = os.path.join(SCRIPT_DIR, "runs", f"sweep_{date_str}")
+    cfg_dir = os.path.join(run_root, "configs")
+    log_dir = os.path.join(run_root, "logs")
+    os.makedirs(cfg_dir, exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
+
+    if args.max_parallel is not None:
+        run_max_parallel(combos, cores_needed, cpus, gpus, base_cfg, args, cfg_dir, log_dir, max_parallel)
+        print(f"[sweep] all runs complete. configs -> {cfg_dir}, logs -> {log_dir}")
+        print("[sweep] compare with: tensorboard --logdir runs")
+        return
 
     # Partition the flat core pool into one contiguous-in-order block per combo, sized
     # to that combo's own requirement.
@@ -189,13 +266,6 @@ def main():
     for n in cores_needed:
         cpu_blocks.append(cpus[_idx:_idx + n])
         _idx += n
-
-    date_str = datetime.now().strftime("%d-%m-%H-%M-%S")
-    run_root = os.path.join(SCRIPT_DIR, "runs", f"sweep_{date_str}")
-    cfg_dir = os.path.join(run_root, "configs")
-    log_dir = os.path.join(run_root, "logs")
-    os.makedirs(cfg_dir, exist_ok=True)
-    os.makedirs(log_dir, exist_ok=True)
 
     procs = []
     for i, overrides in enumerate(combos):
