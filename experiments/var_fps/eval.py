@@ -215,7 +215,7 @@ def evaluate_model_single_run(model, nav_model, frame_cost, budget, fixed):
                 touchdown_vy    = abs(true_obs[3])
                 touchdown_flag  = True
                 landed_in_flags = (-0.2 < true_obs[0] < 0.2)
-                exceed_vy_vel   = touchdown_vy > 0.8
+                exceed_vy_vel   = touchdown_vy > 0.5
                 #print(f"  Ep {ep+1} | Touchdown → x={true_obs[0]:.3f} | vy={touchdown_vy:.4f} | in_flags={landed_in_flags}")
 
             # While grounded, check if drifts outside flags

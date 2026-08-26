@@ -882,13 +882,15 @@ class LunarLander_VarFramerate(LunarLander):
         info["nav_reward"] = nav_reward
         info["frame_cost"] = self.frame_cost
         info["budget"] = self.budget
-        info["chosen_fps"] = self.current_fps
+        info["current_fps"] = self.current_fps
         info["episode_frame_count"] = self.episode_frame_count
         info["timeout"] = truncated and not terminated
         # Whether `action` this tick was actually applied (a real sampling instant) or
         # silently discarded (obs_interval not yet elapsed) -- the training loop's
         # policy-loss masking must not train on discarded-action ticks.
         info["frame_consumed"] = frame_consumed
+        info["frame_penalty"] = frame_penalty
+        info["navigation_action"] = navigation_action
 
         return self._get_sequence_obs(), reward, terminated, truncated, info
 
