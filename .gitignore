@@ -9,6 +9,8 @@
 *.log
 *.npy
 
+steps.csv
+
 # TensorBoard
 **/events.out.tfevents.*
 
