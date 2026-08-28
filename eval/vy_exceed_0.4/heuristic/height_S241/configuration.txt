@@ -1,0 +1,26 @@
+Strategy: Height-based sensing
+Schedule: S241
+FPS schedule: [50, 50, 5, 5] Hz
+
+Height bands:
+  75%-100% of reference height -> 50 Hz
+  50%-75%                      -> 50 Hz
+  25%-50%                      -> 5 Hz
+  0%-25%                       -> 5 Hz
+
+Reference height: 1.5
+
+After first touchdown: request 1 Hz
+
+Observation policy:
+  FPS decisions use the same potentially stale observation
+  available to the sensing policy. No ground-truth state is
+  used for FPS selection.
+
+Evaluation:
+  RUN_SEED: 42
+  Episodes: 100
+
+Neutral environment parameters:
+  frame_cost: 0.0
+  budget: inf

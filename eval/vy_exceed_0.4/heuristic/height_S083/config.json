@@ -1,0 +1,21 @@
+{
+  "mode": "height_S083",
+  "strategy_params": {
+    "schedule_name": "S083",
+    "schedule": [
+      10,
+      10,
+      5,
+      25
+    ],
+    "reference_height": 1.5
+  },
+  "nav_model": "experiments/navigation/runs/LunarLander-v3__ppo__1__1779191150/model.pt",
+  "frame_cost": 0.0,
+  "budget": "inf",
+  "episodes": 100,
+  "initial seed": 42,
+  "max_episode_steps": 500,
+  "device": "cpu",
+  "timestamp": "2026-08-27T18:20:46"
+}

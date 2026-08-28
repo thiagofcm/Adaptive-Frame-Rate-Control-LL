@@ -1,0 +1,21 @@
+{
+  "mode": "height_S071",
+  "strategy_params": {
+    "schedule_name": "S071",
+    "schedule": [
+      10,
+      5,
+      10,
+      25
+    ],
+    "reference_height": 1.5
+  },
+  "nav_model": "experiments/navigation/runs/LunarLander-v3__ppo__1__1779191150/model.pt",
+  "frame_cost": 0.0,
+  "budget": "inf",
+  "episodes": 100,
+  "initial seed": 42,
+  "max_episode_steps": 500,
+  "device": "cpu",
+  "timestamp": "2026-08-27T20:32:40"
+}

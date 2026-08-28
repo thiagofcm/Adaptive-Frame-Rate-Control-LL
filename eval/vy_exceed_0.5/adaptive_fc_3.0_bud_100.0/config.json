@@ -1,0 +1,13 @@
+{
+  "mode": "adaptive_fc_3.0",
+  "model": "runs/LunarLander_VarFramerate_fc_3.0_bud_100_27-08-11-04-51/model.pt",
+  "nav_model": "experiments/navigation/runs/LunarLander-v3__ppo__1__1779191150/model.pt",
+  "frame_cost": 3.0,
+  "budget": 100.0,
+  "fixed_fps": null,
+  "episodes": 100,
+  "initial seed": 42,
+  "max_episode_steps": 500,
+  "device": "cpu",
+  "timestamp": "2026-08-27T20:22:07"
+}

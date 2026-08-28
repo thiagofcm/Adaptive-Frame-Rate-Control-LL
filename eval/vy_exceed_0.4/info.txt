@@ -1,0 +1,4 @@
+All these results were evaluated with vy_exceed = 0.4
+From all the baselines 256 combinations of actions space in the 4 20% of an episode (1 fps excluded since its perfomance is poor anytime in the episode - This behavior can be seen in eval/heuristic/height_X1,2,3,4), 
+I picked the 2 best heuristic policies based on succes rate (S255, S175), and the 2 best heursitic policies based on trade off (0.5 x succes rate) + 0.5 (frame consumption) (S087,S151)
+OBS: All the heuristic policies activate 1 FPS after touchdown (Hardcoded behavior)

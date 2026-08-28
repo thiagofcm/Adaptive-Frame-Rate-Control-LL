@@ -1,0 +1,13 @@
+{
+  "mode": "fixed_1Hz",
+  "model": null,
+  "nav_model": "experiments/navigation/runs/LunarLander-v3__ppo__1__1779191150/model.pt",
+  "frame_cost": 0.0,
+  "budget": 1000.0,
+  "fixed_fps": 1,
+  "episodes": 100,
+  "initial seed": 42,
+  "max_episode_steps": 500,
+  "device": "cpu",
+  "timestamp": "2026-08-27T17:13:18"
+}

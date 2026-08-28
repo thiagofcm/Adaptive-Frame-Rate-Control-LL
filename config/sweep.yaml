@@ -31,5 +31,5 @@ async_envs: true
 # across these lists (currently a single dimension: budget).
 sweep:
   budget: [25, 30, 50, 75, 100, 300]
-  frame_cost: [0.0, 1.0, 3.0]
+  frame_cost: [0.25, 0.5]
 

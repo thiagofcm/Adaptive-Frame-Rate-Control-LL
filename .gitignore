@@ -6,6 +6,8 @@
 *.jpg
 *.jpeg
 *.gif
+*.log
+*.npy
 
 # TensorBoard
 **/events.out.tfevents.*

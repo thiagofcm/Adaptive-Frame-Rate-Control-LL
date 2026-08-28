@@ -69,7 +69,7 @@ LSTM_HIDDEN_SIZE = 64
 
 NAV_MODEL_PATH_DEFAULT = "experiments/navigation/runs/LunarLander-v3__ppo__1__1779191150/model.pt"
 
-EVAL_ROOT = "eval/"
+EVAL_ROOT = "eval/vy_exceed_0.5"
 
 STEP_CSV_FIELDS = [
     "step",
@@ -138,7 +138,6 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.constant_(layer.bias, bias_const)
     return layer
 
-
 class NavAgent(nn.Module):
     def __init__(self, obs_dim=8, n_actions=4):
         super().__init__()
@@ -152,7 +151,6 @@ class NavAgent(nn.Module):
             layer_init(nn.Linear(64, 64)), nn.Tanh(),
             layer_init(nn.Linear(64, 1), std=1.0),
         )
-
 
 class NavModel:
     """Frozen base landing/navigation controller."""
@@ -172,7 +170,6 @@ class NavModel:
         with torch.no_grad():
             action = torch.argmax(self.agent.actor(obs_tensor), dim=-1)
         return action.cpu().numpy()[0], None
-
 
 class AgentEval(nn.Module):
     """Adaptive sensing-rate (var-FPS) policy: MLP + LSTM actor-critic."""
@@ -224,7 +221,6 @@ class AgentEval(nn.Module):
                 action = Categorical(logits=self.actor(hidden)).sample()
         return action.cpu().numpy()[0], lstm_state
 
-
 # =========================
 # Evaluate one episode -- shared by both adaptive and fixed sensing modes.
 # Direct equivalent of AdaptiveFPS's run_lap().
@@ -257,9 +253,8 @@ def run_episode(env, fixed_fps, episode_dir, model, seed):
     landed_in_flags = False
     outside_flags_after_landing = False
     went_up_after = False
-    exceed_vy_vel = False   
-    prev_leg1 = False
-    prev_leg2 = False
+    exceed_vy_vel = False
+    post_touchdown_airborne_steps = 0
     terminated, truncated = False, False
 
     while not (terminated or truncated):
@@ -313,12 +308,20 @@ def run_episode(env, fixed_fps, episode_dir, model, seed):
         if touchdown_flag and leg_contact and not (-0.2 < true_observation[0] < 0.2):
             outside_flags_after_landing = True
 
-        both_grounded_prev = prev_leg1 and prev_leg2
-        both_off_ground = not leg1 and not leg2
-        if touchdown_flag and both_grounded_prev and both_off_ground:
-            went_up_after = True
+        # A real bounce can lift off gradually (both legs -> one leg -> no legs), not
+        # just as an immediate both-grounded-to-both-off transition, so this counts
+        # consecutive fully-airborne steps after touchdown instead: 1 is tolerated as
+        # possible contact jitter, 2+ means the lander has genuinely left the ground.
+        # went_up_after is only ever set True here, never reset, so it stays True for
+        # the rest of the episode once tripped.
+        if touchdown_flag:
+            if not leg1 and not leg2:
+                post_touchdown_airborne_steps += 1
+            else:
+                post_touchdown_airborne_steps = 0
 
-        prev_leg1, prev_leg2 = leg1, leg2
+            if post_touchdown_airborne_steps >= 5:
+                went_up_after = True
 
         
         successful = (

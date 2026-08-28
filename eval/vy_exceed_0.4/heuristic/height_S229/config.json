@@ -1,0 +1,21 @@
+{
+  "mode": "height_S229",
+  "strategy_params": {
+    "schedule_name": "S229",
+    "schedule": [
+      50,
+      25,
+      10,
+      5
+    ],
+    "reference_height": 1.5
+  },
+  "nav_model": "experiments/navigation/runs/LunarLander-v3__ppo__1__1779191150/model.pt",
+  "frame_cost": 0.0,
+  "budget": "inf",
+  "episodes": 100,
+  "initial seed": 42,
+  "max_episode_steps": 500,
+  "device": "cpu",
+  "timestamp": "2026-08-27T18:34:43"
+}
